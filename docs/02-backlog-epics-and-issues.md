@@ -30,7 +30,7 @@ Priority meanings: **P0** blocker / critical-path work; **P1** needed for the pi
 |---|---|---|---|
 | FARO-010 | P0 | Launch whisper.cpp baseline locally | 001 |
 | FARO-011 | P0 | Push-to-talk browser recording | 001 |
-| FARO-012 | P0 | Browser audio normalization → ASR integration | 010, 011, **031** (mandatory prerequisite) |
+| FARO-012 | P0 | Browser audio normalization → ASR integration | 010, 011, **031** (ASR port), **040** (LOCAL_ONLY safety gate) |
 | FARO-013 | P1 | Transcription metadata without default audio retention | 012 |
 | FARO-014 | P1 | Comparative local ASR benchmark | 013, 024 |
 
