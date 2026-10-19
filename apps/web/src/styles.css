@@ -1,0 +1,11 @@
+:root { font-family: system-ui, sans-serif; color: #172b43; background: #f3f7fa; line-height: 1.5; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.shell { max-width: 760px; margin: clamp(2rem, 9vh, 7rem) auto; padding: 1.5rem; }
+.eyebrow { font-weight: 800; font-size: .8rem; letter-spacing: .12em; color: #1e6085; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.14; margin: .6rem 0; }
+h2 { font-size: 1.1rem; margin-top: 0; }
+.lede { font-size: 1.15rem; max-width: 55ch; }
+.panel { margin-top: 2rem; border: 1px solid #bdd0db; background: white; border-radius: 14px; padding: 1.4rem; }
+.notice { color: #41586b; margin-top: 2rem; font-size: .93rem; }
+:focus-visible { outline: 3px solid #126c9e; outline-offset: 3px; }
