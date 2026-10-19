@@ -1,0 +1,85 @@
+# Editors / operating systems
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Credentials and per-developer config
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+**/secrets/
+
+# Frontend
+**/node_modules/
+**/dist/
+**/coverage/
+**/.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# JVM / Gradle / IDE
+.gradle/
+**/.gradle/
+**/build/
+**/out/
+**/target/
+hs_err_pid*
+replay_pid*
+
+# Local research data, temporary audio, and metrics
+data/
+datasets/private/
+recordings/
+audio/
+audios/
+samples/private/
+tmp/
+temp/
+logs/
+*.log
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.jsonl
+!**/fixtures/*.jsonl
+
+# ML weights, model caches and audio recordings
+models/
+**/models/
+*.gguf
+*.ggml
+*.onnx
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.tflite
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.webm
+*.flac
+*.opus
+
+# Private benchmark outputs
+tools/benchmark-results/private/
+infra/whisper/cache/
