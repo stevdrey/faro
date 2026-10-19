@@ -62,8 +62,10 @@ logs/
 !**/fixtures/*.jsonl
 
 # ML weights, model caches and audio recordings
-models/
-**/models/
+/models/
+/infra/whisper/models/
+/infra/asr/models/
+/tools/models/
 *.gguf
 *.ggml
 *.onnx
@@ -79,6 +81,13 @@ models/
 *.webm
 *.flac
 *.opus
+
+# Exception: deliberately reviewed and licensed prerecorded UI instructions.
+# Recordings of children must stay in private ignored directories.
+!apps/web/public/audio/
+!apps/web/public/audio/*.wav
+!apps/web/public/audio/*.mp3
+!apps/web/public/audio/*.ogg
 
 # Private benchmark outputs
 tools/benchmark-results/private/
