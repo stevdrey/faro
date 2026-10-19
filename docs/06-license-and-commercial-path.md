@@ -1,8 +1,8 @@
 # Open-source licensing and possible commercial path
 
-**Status: proposal, not legal advice or an adopted license.** The source recommends `AGPL-3.0-or-later` for Faro-owned code; a root `LICENSE` file is intentionally deferred until explicit selection.
+**Status: Faro-owned source-code license adopted on 2026-10-19; commercialization remains a proposal; not legal advice.** The project owner selected `AGPL-3.0-or-later` and the repository includes the official [GNU AGPLv3 license text](../LICENSE). Faro-owned source is licensed as **version 3 or any later version**; this does not automatically relicense third-party dependencies, model weights, or audiovisual content.
 
-## Proposed outcome
+## Licensing objectives and proposed commercial path
 
 - Allow families, schools, and developers to use, study, modify, and self-host the application.
 - Fund optional inexpensive hosted operation and support if the pilot proves viable.

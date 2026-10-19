@@ -67,4 +67,4 @@ Eight epics (A–H) organize FARO-001 through FARO-041. Start with a narrow vert
 
 **Do not use this initial scaffold with real children's data or expose it to a network.** The web and backend bind to loopback only. Recording, adult authorization, consent, deletion, and the `LOCAL_ONLY` enforcement are **not yet implemented**. Do not commit recordings, transcripts, personally identifying information, third-party model weights, or secrets. Tests should use synthetic cases.
 
-**AGPL-3.0-or-later is proposed, not yet selected.** No `LICENSE` file is included until this is confirmed. Third-party runtimes and each individual set of model weights require separate license reviews. See [licensing notes](docs/06-license-and-commercial-path.md).
+**License:** Faro-owned source code is licensed under [GNU AGPL-3.0-or-later](LICENSE) (version 3 of the GNU Affero General Public License, or any later version at the recipient's option). Third-party runtimes, model weights, recordings, instructional media, and other external assets keep their own licenses and require separate review. See [licensing notes](docs/06-license-and-commercial-path.md).

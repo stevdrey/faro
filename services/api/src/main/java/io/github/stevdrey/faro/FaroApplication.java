@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.stevdrey.faro;
 
 import org.springframework.boot.SpringApplication;
