@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Costa_Rica
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+
+  - package-ecosystem: gradle
+    directory: /services/api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:30"
+      timezone: America/Costa_Rica
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Costa_Rica
+    open-pull-requests-limit: 5

@@ -10,9 +10,10 @@ All project documentation and GitHub work items are written in English. The user
 | [Assessment and evidence](04-assessment-and-evidence.md) | Types, rules, required regression scenarios |
 | [Provider-independent models](05-provider-independence.md) | ASR ports, configuration, local-only policy, optional future LLM |
 | [ASR research](research/asr-alternatives-es.md) | Baseline, candidates, benchmark methodology, license cautions |
-| [Licensing and commercial evolution](06-license-and-commercial-path.md) | Adopted AGPL-3.0-or-later for Faro source, third-party rights and proposed SaaS |
+| [Licensing and commercial evolution](06-license-and-commercial-path.md) | AGPL-3.0-or-later for Faro code, external dependencies, SaaS proposals |
 | [Pilot, privacy, and accessibility](07-pilot-privacy-and-accessibility.md) | Consent, research metrics, safety, and deletion |
+| [Supply-chain security](08-supply-chain-security.md) | npm install-script lockdown, Gradle verification, secure CI and reviews |
 | [ADR-0001](adr/0001-modular-monolith.md) | Modular monolith and separately managed local ASR |
 | [ADR-0002](adr/0002-provider-independent-models.md) | Own AI capability ports and fail-closed local policy |
 
-Source basis: *Proyecto Faro — integral kickoff document*, proposed v0.1, 16 October 2026. This is an English adaptation of the source decisions and scoped issue descriptions. Except for Faro-owned code's adopted AGPL-3.0-or-later license, architectural status, provider versions, third-party license terms, and commercial plans remain proposals or require verification. No completed tests or legal review are claimed here.
+Source basis: *Proyecto Faro — integral kickoff document*, proposed v0.1, 16 October 2026. Architecture decisions and some provider compatibility assumptions still require confirmation; choosing Java 27 does not imply Spring Boot's published support extends to Java 27.

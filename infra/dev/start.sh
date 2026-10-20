@@ -5,11 +5,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if ! command -v gradle >/dev/null 2>&1; then
-  echo "Gradle 8.14.3 is required. See README.md." >&2
+  echo "Gradle 9.8.1 is required. See README.md." >&2
+  exit 1
+fi
+if [ ! -f apps/web/package-lock.json ]; then
+  echo "The pinned npm lockfile is missing; do not install without it." >&2
   exit 1
 fi
 if [ ! -d apps/web/node_modules ]; then
-  echo "First run: npm --prefix apps/web install" >&2
+  echo "First run: npm --prefix apps/web ci --ignore-scripts" >&2
   exit 1
 fi
 
