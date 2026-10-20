@@ -25,3 +25,8 @@ dependencies {
 }
 
 tasks.withType<Test> { useJUnitPlatform() }
+
+// Keep public examples in one place for API tests and future clients.
+sourceSets.test {
+    resources.srcDir("../../contracts")
+}

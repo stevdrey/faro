@@ -27,7 +27,7 @@ Adult review (separate protected view) ├──> Spring Boot modular monolith
 
 ## Stable conceptual contracts
 
-`ExerciseDefinition(id, schemaVersion, family, values, presentation, difficulty)`; the **backend retains expectedResult**, never exposing solutions in child-facing exercise payloads.
+`ExerciseDefinition(exerciseId, operands, visualModel, difficulty, expectedResult)` is backend-only; the family is derived from typed operands. `ExercisePayload.from(definition)` produces the public versioned contract with `exerciseId`, `schemaVersion`, `type`, `operands`, `visualModel`, and `difficulty`. The **backend retains expectedResult**, never exposing solutions in child-facing exercise payloads. See the [version 1 exercise contract and JSON fixtures](../contracts/exercises/v1/README.md).
 
 `ActionEvent(kind, value, step, occurredAt)` and `Attempt(id, exerciseId, sessionId, actionTrace, completionState)`. Replaying the same semantic trace must yield the same interpretation.
 

@@ -1,0 +1,8 @@
+{
+  "exerciseId": "subtraction-53-28",
+  "schemaVersion": 1,
+  "type": "SUBTRACTION",
+  "operands": { "minuend": 53, "subtrahend": 28 },
+  "visualModel": "TENS_AND_ONES",
+  "difficulty": "MEDIUM"
+}

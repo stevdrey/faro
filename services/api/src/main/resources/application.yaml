@@ -1,6 +1,18 @@
 server:
   address: 127.0.0.1
   port: 8080
+spring:
+  jackson:
+    deserialization:
+      fail-on-missing-creator-properties: true
+      fail-on-null-for-primitives: true
+      fail-on-unknown-properties: true
+      accept-float-as-int: false
+    datatype:
+      enum:
+        fail-on-numbers-for-enums: true
+    mapper:
+      allow-coercion-of-scalars: false
 management:
   endpoints:
     web:

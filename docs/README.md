@@ -7,6 +7,7 @@ All project documentation and GitHub work items are written in English. The user
 | [Vision and MVP 0.1](01-vision-and-mvp.md) | Research question, scope, exercises, and success criteria |
 | [Epic and issue backlog](02-backlog-epics-and-issues.md) | Epic A–H, FARO-001 to FARO-041, priorities, and dependencies |
 | [Architecture and evolution](03-architecture-and-evolution.md) | Modules, API ideas, boundary rules, and delivery sequence |
+| [Exercise contract v1](../contracts/exercises/v1/README.md) | Public exercise types, backend solution boundary, JSON fixtures, and serialization tests |
 | [Assessment and evidence](04-assessment-and-evidence.md) | Types, rules, required regression scenarios |
 | [Provider-independent models](05-provider-independence.md) | ASR ports, configuration, local-only policy, optional future LLM |
 | [ASR research](research/asr-alternatives-es.md) | Baseline, candidates, benchmark methodology, license cautions |
