@@ -1,0 +1,10 @@
+# Changes to build machinery, lockfiles and workflow permissions require owner review.
+# Branch protection must be configured in the GitHub repository settings.
+/.github/ @stevdrey
+/apps/web/package.json @stevdrey
+/apps/web/package-lock.json @stevdrey
+/apps/web/.npmrc @stevdrey
+/services/api/build.gradle.kts @stevdrey
+/services/api/settings.gradle.kts @stevdrey
+/services/api/gradle.lockfile @stevdrey
+/services/api/gradle/verification-metadata.xml @stevdrey
