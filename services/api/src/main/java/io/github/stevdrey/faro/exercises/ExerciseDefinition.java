@@ -12,10 +12,7 @@ public record ExerciseDefinition(
         int expectedResult) {
 
     public ExerciseDefinition {
-        Objects.requireNonNull(exerciseId, "exerciseId");
-        if (exerciseId.isBlank()) {
-            throw new IllegalArgumentException("exerciseId must not be blank");
-        }
+        ExerciseIds.requireValid(exerciseId);
         Objects.requireNonNull(operands, "operands");
         Objects.requireNonNull(visualModel, "visualModel");
         Objects.requireNonNull(difficulty, "difficulty");

@@ -2,17 +2,25 @@
 package io.github.stevdrey.faro.exercises;
 
 import java.util.List;
+import java.util.Objects;
 
 /** Known inputs only. A sequence contains visible terms, never its missing next term. */
 public sealed interface ExerciseOperands {
     record MissingAddend(int total, int knownAddend) implements ExerciseOperands {}
 
     record Sequence(List<Integer> terms) implements ExerciseOperands {
+        public static final int MAX_TERMS = 20;
+
         public Sequence {
-            terms = List.copyOf(terms);
-            if (terms.size() < 2) {
-                throw new IllegalArgumentException("A sequence needs at least two visible terms");
+            Objects.requireNonNull(terms, "terms");
+            if (terms.size() < 2 || terms.size() > MAX_TERMS) {
+                throw new IllegalArgumentException(
+                        "A sequence needs between 2 and " + MAX_TERMS + " visible terms");
             }
+            for (Integer term : terms) {
+                Objects.requireNonNull(term, "terms must not contain null");
+            }
+            terms = List.copyOf(terms);
         }
     }
 

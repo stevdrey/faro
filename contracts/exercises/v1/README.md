@@ -18,7 +18,7 @@ All six fields are required and non-null. Unknown fields and enum values are rej
 | Type | Operand shape and interpretation | Initial visual model | Fixture |
 |---|---|---|---|
 | `MISSING_ADDEND` | `{ "total": 18, "knownAddend": 12 }` presents `18 = 12 + □`. The missing addend is always the second addend. | `BLOCKS` | [missing-addend.json](fixtures/missing-addend.json) |
-| `SEQUENCE` | `{ "terms": [30, 28] }` presents `30, 28, □`. At least two ordered, visible integer terms are required; the next term is omitted. | `NUMBER_LINE` | [sequence.json](fixtures/sequence.json) |
+| `SEQUENCE` | `{ "terms": [30, 28] }` presents `30, 28, □`. Between two and twenty ordered, visible integer terms are required; the next term is omitted. | `NUMBER_LINE` | [sequence.json](fixtures/sequence.json) |
 | `SUBTRACTION` | `{ "minuend": 53, "subtrahend": 28 }` presents `53 − 28`. | `TENS_AND_ONES` | [subtraction.json](fixtures/subtraction.json) |
 
 The initial visual models above are presentation choices, not enforced family-to-model restrictions. Every operand field is required and non-null; sequence terms cannot contain nulls. The fixtures are synthetic public payloads and contain no solutions or pilot data.
@@ -27,7 +27,9 @@ The initial visual models above are presentation choices, not enforced family-to
 
 `ExerciseDefinition` is a backend-only immutable domain record with an `expectedResult` integer. Its family is derived from its typed operands, so family/operand mismatches cannot be constructed. The domain imports neither Jackson nor Spring nor a model-provider SDK.
 
-`ExercisePayload.from(definition)` explicitly projects a definition to a sealed public DTO variant, attaches `schemaVersion: 1`, and omits the solution. Future controllers must return this DTO, never serialize `ExerciseDefinition` directly. Jackson adds the top-level `type` discriminator; no implementation class names or nested operand discriminators appear in JSON. Application-wide Jackson settings reject missing creator properties, null primitives, unknown fields, and scalar coercion. `ExerciseJsonConfiguration` additionally rejects numbers and booleans where a JSON string is required, which Jackson's scalar-coercion flag alone does not cover.
+`ExercisePayload.from(definition)` explicitly projects a definition to a sealed public DTO variant, attaches `schemaVersion: 1`, and omits the solution. Future controllers must return this DTO, never serialize `ExerciseDefinition` directly. Jackson adds the top-level `type` discriminator; no implementation class names or nested operand discriminators appear in JSON. Wire operands are dedicated `ExercisePayload.*Operands` records, so renaming a domain record component does not silently change v1 JSON; sequence operands reuse the domain's term-count and null rules.
+
+Incoming payloads must be read through `ExercisePayloadJson`, a strict codec derived from the application mapper. It rejects missing creator properties, null primitives, unknown fields, numeric enums, fractional integers, and scalar coercion, including numbers and booleans where a JSON string is required. The application-wide mapper keeps Spring Boot's defaults, so this strictness applies only to the exercise contract. The twenty-term limit is enforced after parsing; the raw request size is bounded by the server's request limits.
 
 The web client exports the matching readonly discriminated union from `apps/web/src/contracts/exercise.ts`. TypeScript checks shape and family narrowing; `number` and `string` do not enforce integer ranges or nonblank values at runtime. These types alone are not validation of an untrusted server response.
 
@@ -35,7 +37,7 @@ The web client exports the matching readonly discriminated union from `apps/web/
 
 Version 1 accepts only the documented shape. Renaming fields, adding fields or enum variants, or changing operand meaning requires a new contract version and an explicit client migration; do not reinterpret existing v1 fixtures. Unsupported versions are rejected. Wire schema versions belong to the presentation contract, not the domain or assessment rules.
 
-The backend loads the shared fixtures as test resources. Contract tests use the Spring-configured mapper to verify variant selection, JSON round trips, explicit domain projection, solution exclusion, and malformed input rejection. The web's `typecheck` script checks valid variants and expected compile failures for invalid combinations; `build` runs that check, including in CI.
+The backend copies only the shared JSON fixtures into its test resources. Contract tests use the Spring-configured mapper to verify variant selection, JSON round trips, explicit domain projection, solution exclusion, and malformed input rejection. The web's `typecheck` script checks valid variants, expected compile failures for invalid combinations, and that each shared fixture has exactly the field names and numeric operand types of its client variant (enum string values are checked by the backend tests); `build` runs that check, including in CI.
 
 ```bash
 gradle -p services/api --no-daemon test

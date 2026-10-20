@@ -25,42 +25,50 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
-/** Uses the application's mapper, including its strict JSON settings. */
+/** Uses the strict v1 codec; the application mapper only parses fixtures into trees. */
 @SpringBootTest
 class ExercisePayloadTests {
     @Autowired
     private ObjectMapper mapper;
 
+    @Autowired
+    private ExercisePayloadJson exerciseJson;
+
     static Stream<Arguments> fixtures() {
         return Stream.of(
                 Arguments.of("missing-addend", ExercisePayload.MissingAddend.class,
-                        ExerciseType.MISSING_ADDEND, new ExerciseOperands.MissingAddend(18, 12), 6),
+                        ExerciseType.MISSING_ADDEND, new ExerciseOperands.MissingAddend(18, 12),
+                        new ExercisePayload.MissingAddendOperands(18, 12), 6),
                 Arguments.of("sequence", ExercisePayload.Sequence.class,
-                        ExerciseType.SEQUENCE, new ExerciseOperands.Sequence(List.of(30, 28)), 26),
+                        ExerciseType.SEQUENCE, new ExerciseOperands.Sequence(List.of(30, 28)),
+                        new ExercisePayload.SequenceOperands(List.of(30, 28)), 26),
                 Arguments.of("subtraction", ExercisePayload.Subtraction.class,
-                        ExerciseType.SUBTRACTION, new ExerciseOperands.Subtraction(53, 28), 25));
+                        ExerciseType.SUBTRACTION, new ExerciseOperands.Subtraction(53, 28),
+                        new ExercisePayload.SubtractionOperands(53, 28), 25));
     }
 
     @ParameterizedTest(name = "{0}: JSON round trip")
     @MethodSource("fixtures")
     void roundTripsPublicFixtures(
             String fixture, Class<? extends ExercisePayload> variant,
-            ExerciseType type, ExerciseOperands operands, int expectedResult) throws IOException {
+            ExerciseType type, ExerciseOperands operands, ExercisePayload.Operands wireOperands,
+            int expectedResult) throws IOException {
         JsonNode json = fixture(fixture);
-        ExercisePayload payload = mapper.treeToValue(json, ExercisePayload.class);
+        ExercisePayload payload = exerciseJson.read(mapper.writeValueAsString(json));
 
         assertThat(payload).isInstanceOf(variant);
         assertThat(payload.type()).isEqualTo(type);
-        assertThat(payload.operands()).isEqualTo(operands);
+        assertThat(payload.operands()).isEqualTo(wireOperands);
         assertThat(payload.schemaVersion()).isEqualTo(1);
-        assertThat(mapper.readTree(mapper.writeValueAsString(payload))).isEqualTo(json);
+        assertThat(mapper.readTree(exerciseJson.write(payload))).isEqualTo(json);
     }
 
     @ParameterizedTest(name = "{0}: backend projection hides solution")
     @MethodSource("fixtures")
     void projectsOnlyPublicFields(
             String fixture, Class<? extends ExercisePayload> variant,
-            ExerciseType type, ExerciseOperands operands, int expectedResult) throws IOException {
+            ExerciseType type, ExerciseOperands operands, ExercisePayload.Operands wireOperands,
+            int expectedResult) throws IOException {
         JsonNode json = fixture(fixture);
         ExerciseDefinition definition = new ExerciseDefinition(
                 json.get("exerciseId").asString(), operands,
@@ -68,11 +76,12 @@ class ExercisePayloadTests {
                 Difficulty.valueOf(json.get("difficulty").asString()), expectedResult);
 
         ExercisePayload payload = ExercisePayload.from(definition);
-        JsonNode serialized = mapper.readTree(mapper.writeValueAsString(payload));
+        JsonNode serialized = mapper.readTree(exerciseJson.write(payload));
 
-        assertThat(definition.expectedResult()).isEqualTo(expectedResult);
         assertThat(definition.type()).isEqualTo(type);
         assertThat(payload).isInstanceOf(variant);
+        assertThat(payload.type()).isEqualTo(type);
+        assertThat(payload.operands()).isEqualTo(wireOperands);
         assertThat(serialized).isEqualTo(json);
         assertThat(serialized.properties()).extracting(java.util.Map.Entry::getKey)
                 .containsExactlyInAnyOrder(
@@ -146,6 +155,13 @@ class ExercisePayloadTests {
                 invalid("string term", root -> {
                     root.put("type", "SEQUENCE");
                     root.putObject("operands").putArray("terms").add(30).add("28");
+                }),
+                invalid("too many terms", root -> {
+                    root.put("type", "SEQUENCE");
+                    var terms = root.putObject("operands").putArray("terms");
+                    for (int i = 0; i <= ExerciseOperands.Sequence.MAX_TERMS; i++) {
+                        terms.add(i);
+                    }
                 }));
         return Stream.concat(Stream.concat(missingFields, nullFields), malformed);
     }
@@ -156,7 +172,19 @@ class ExercisePayloadTests {
         ObjectNode json = (ObjectNode) fixture("missing-addend");
         mutate.accept(json);
 
-        assertThatThrownBy(() -> mapper.readValue(mapper.writeValueAsString(json), ExercisePayload.class))
+        assertThatThrownBy(() -> exerciseJson.read(mapper.writeValueAsString(json)))
+                .isInstanceOf(JacksonException.class);
+    }
+
+    @Test
+    void strictnessIsScopedToTheExerciseCodec() throws IOException {
+        ObjectNode json = (ObjectNode) fixture("missing-addend");
+        json.put("extra", "ignored");
+
+        // The application mapper keeps Spring Boot's lenient defaults for other endpoints.
+        assertThat(mapper.readValue(mapper.writeValueAsString(json), ExercisePayload.class))
+                .isInstanceOf(ExercisePayload.MissingAddend.class);
+        assertThatThrownBy(() -> exerciseJson.read(mapper.writeValueAsString(json)))
                 .isInstanceOf(JacksonException.class);
     }
 
@@ -176,15 +204,21 @@ class ExercisePayloadTests {
         ExerciseDefinition definition = new ExerciseDefinition(
                 "synthetic", operands, VisualModel.BLOCKS, Difficulty.HARD, 99);
 
-        assertThat(ExercisePayload.from(definition).operands()).isEqualTo(operands);
+        assertThat(ExercisePayload.from(definition).operands())
+                .isEqualTo(new ExercisePayload.MissingAddendOperands(0, -1));
         assertThatThrownBy(() -> new ExerciseDefinition(" ", operands, VisualModel.BLOCKS, Difficulty.EASY, 0))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ExerciseDefinition("id", null, VisualModel.BLOCKS, Difficulty.EASY, 0))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new ExerciseOperands.Sequence(List.of(30)))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ExerciseOperands.Sequence(
+                Stream.iterate(0, i -> i + 1).limit(ExerciseOperands.Sequence.MAX_TERMS + 1).toList()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ExerciseOperands.Sequence(null))
+                .isInstanceOf(NullPointerException.class).hasMessage("terms");
         assertThatThrownBy(() -> new ExercisePayload.MissingAddend(
-                "id", 2, new ExerciseOperands.MissingAddend(18, 12), VisualModel.BLOCKS, Difficulty.EASY))
+                "id", 2, new ExercisePayload.MissingAddendOperands(18, 12), VisualModel.BLOCKS, Difficulty.EASY))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
