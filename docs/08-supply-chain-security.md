@@ -30,6 +30,7 @@ Pin Gradle plugins. Resolve dependencies only through approved repositories, ena
 - Validate both API and UI, `npm audit`, signatures, and PR dependency review.
 - Enforce review before updating dependency manifests/lockfiles, Gradle verification metadata, or workflow definitions. Configure repository branch rules: require checks, at least one review, dismiss stale approvals, restrict force-pushes and direct writes. Add CODEOWNERS reviewers if available.
 - Do not permit an untrusted PR to run under `pull_request_target` with repository secrets.
+- **Repository owner action required:** turn on **Dependency graph** (and Dependabot alerts) in [GitHub Code security and analysis](https://github.com/stevdrey/faro/settings/security_analysis). The Dependency Review PR job fails closed while GitHub's dependency graph is disabled; do not skip that check or treat it as successful.
 
 ## Updates and security incidents
 
