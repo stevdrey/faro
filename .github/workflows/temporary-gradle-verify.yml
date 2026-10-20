@@ -1,0 +1,34 @@
+name: Temporary Gradle SHA-256 verification refresh
+
+on:
+  push:
+    branches: [chore/java27-react-supply-chain-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '27'
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          gradle-version: '9.8.1'
+      - name: Refresh missing artifact checksums
+        run: gradle -p services/api --no-daemon --write-verification-metadata sha256 test
+      - name: Emit refreshed verification-metadata.xml for review
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const text = fs.readFileSync('services/api/gradle/verification-metadata.xml', 'utf8')
+          for (let i = 0; i < text.length; i += 1400) console.log('FARO_GRADLE_REFRESH_CHUNK:' + JSON.stringify(text.slice(i, i + 1400)))
+          console.log('FARO_GRADLE_REFRESH_END')
+          NODE
