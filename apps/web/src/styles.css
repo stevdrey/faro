@@ -52,7 +52,8 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
 .finish-button span { font-size: 24px; line-height: 1; }
 .privacy-note { text-align: center; font-size: 11px; color: #596b5e; margin: 22px 0 0; }
 .drag-preview { position: fixed; transform: translate(-50%, -50%) rotate(-7deg); z-index: 10; pointer-events: none; box-shadow: 0 8px 18px #273c3433; }
-@media (max-width: 640px) {
+/* Keep one column until both fixed-size block grids and panel padding fit. */
+@media (max-width: 700px) {
   .activity { padding: 16px; max-width: 440px; }
   .activity-header { padding-bottom: 12px; }
   .activity-label { font-size: 9px; letter-spacing: .1em; }

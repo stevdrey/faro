@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useReducer, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { MissingAddendExercise } from '../../contracts/exercise.ts'
 import { attemptReducer, emptyAttempt, MAX_BLOCKS } from './attempt.ts'
@@ -96,6 +96,13 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
     if (activeDrag.current?.pointerId === event.pointerId) cancelDrag()
   }
 
+  function preventRepeatedActivation(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    // Focus moves between the finish/reset buttons; a held key is still one action.
+    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault()
+    }
+  }
+
   const known = <span key="known">{exercise.operands.knownAddend}</span>
   const total = <span key="total">{exercise.operands.total}</span>
   const missing = <span key="missing" className="missing-symbol">□</span>
@@ -158,7 +165,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
       <footer className="activity-footer">
         <p className="completion-message" role="status">{state.completed ? 'Terminaste' : 'A tu ritmo.'}</p>
         {state.completed
-          ? <button type="button" className="finish-button" ref={resetButton} onClick={event => {
+          ? <button type="button" className="finish-button" ref={resetButton} onKeyDown={preventRepeatedActivation} onClick={event => {
             // Ignore the second click of a double-click on the previous Listo button.
             if (event.detail > 1) return
             cancelDrag()
@@ -167,7 +174,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
             // The finish button returns on the next render.
             requestAnimationFrame(() => doneButton.current?.focus())
           }}>Intentar de nuevo <span aria-hidden="true">↻</span></button>
-          : <button type="button" className="finish-button" ref={doneButton} onClick={() => move('finishAttempt')}>Listo <span aria-hidden="true">→</span></button>}
+          : <button type="button" className="finish-button" ref={doneButton} onKeyDown={preventRepeatedActivation} onClick={() => move('finishAttempt')}>Listo <span aria-hidden="true">→</span></button>}
       </footer>
       <p className="privacy-note">Demo local · No graba audio. Los movimientos se borran al reiniciar o cerrar.</p>
       {drag && <span className="block drag-preview" aria-hidden="true" style={{ left: drag.x, top: drag.y }} />}

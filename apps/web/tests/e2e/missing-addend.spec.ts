@@ -57,6 +57,82 @@ test('the real app works without an API, stores no attempt, and supports keyboar
   await expectCount(page, 0)
 })
 
+for (const key of ['Enter', 'Space']) {
+  test(`holding ${key} cannot restart a completed attempt or finish the next one`, async ({ page }) => {
+    await page.goto('/tests/e2e/harness.html')
+    for (let i = 0; i < 6; i++) await page.getByRole('button', { name: 'Agregar un bloque' }).click()
+    await page.getByRole('button', { name: 'Listo' }).focus()
+
+    async function holdAndRelease() {
+      try {
+        await page.keyboard.down(key)
+        for (let repeat = 0; repeat < 3; repeat++) {
+          // Repeated down calls set KeyboardEvent.repeat without releasing the key.
+          await page.keyboard.down(key)
+          await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())))
+        }
+      } finally {
+        await page.keyboard.up(key)
+      }
+    }
+
+    await holdAndRelease()
+    await expectCount(page, 6)
+    await expect(page.getByRole('status')).toHaveText('Terminaste')
+    await expect(page.getByRole('button', { name: 'Intentar de nuevo' })).toBeFocused()
+    const completed = await page.evaluate(() => window.screenEvidence)
+    expect(completed.completions).toHaveLength(1)
+    expect(completed.resets).toBe(0)
+    expect(completed.completions[0].events).toHaveLength(7)
+    expect(completed.completions[0].events.at(-1)?.kind).toBe('finishAttempt')
+
+    // A new key press deliberately resets, but holding it must not finish at zero.
+    await holdAndRelease()
+    await expectCount(page, 0)
+    await expect(page.getByRole('status')).toHaveText('A tu ritmo.')
+    await expect(page.getByRole('button', { name: 'Listo' })).toBeFocused()
+    const reset = await page.evaluate(() => window.screenEvidence)
+    expect(reset.completions).toHaveLength(1)
+    expect(reset.resets).toBe(1)
+    await page.keyboard.press(key)
+    await expect(page.getByRole('status')).toHaveText('Terminaste')
+    await expect.poll(() => page.evaluate(() => window.screenEvidence.completions.length)).toBe(2)
+  })
+}
+
+for (const width of [320, 360, 640, 641, 695, 700, 701, 768, 1100]) {
+  test(`panels and controls fit at ${width}px with zero and ten blocks`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 })
+    await page.goto('/')
+
+    async function expectHorizontalFit() {
+      const geometry = await page.evaluate(() => ({
+        viewport: innerWidth,
+        document: document.documentElement.scrollWidth,
+        elements: [...document.querySelectorAll('.known-panel, .answer-panel, .reserve-panel, button')].map(element => {
+          const { left, right } = element.getBoundingClientRect()
+          return { left, right }
+        }),
+      }))
+      expect(geometry.document).toBeLessThanOrEqual(geometry.viewport)
+      for (const element of geometry.elements) {
+        expect(element.left).toBeGreaterThanOrEqual(0)
+        expect(element.right).toBeLessThanOrEqual(geometry.viewport)
+      }
+    }
+
+    await expectCount(page, 0)
+    await expectHorizontalFit()
+    for (let i = 0; i < 10; i++) await page.getByRole('button', { name: 'Agregar un bloque' }).click()
+    await expectCount(page, 10)
+    await expectHorizontalFit()
+    await page.getByRole('button', { name: 'Listo' }).click()
+    await expectHorizontalFit()
+    await page.getByRole('button', { name: 'Intentar de nuevo' }).click()
+    await expectCount(page, 0)
+  })
+}
+
 test('mouse drag supports corrections, outside drops, Escape, and pointer cancellation without phantom events', async ({ page }) => {
   await page.goto('/tests/e2e/harness.html')
   const reserve = page.getByTestId('reserve-area')

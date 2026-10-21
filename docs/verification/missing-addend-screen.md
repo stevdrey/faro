@@ -20,6 +20,11 @@ attempt. `Intentar de nuevo` clears the component and container state and starts
 a new trace. Reload also starts empty. The component honors all three existing
 missing-addend equation presentations.
 
+Holding Enter or Space on either finish/reset control cannot trigger the next
+action after focus moves: repeated activation keydowns are suppressed, and a fresh
+press after releasing the key still works. The one-column layout applies through
+700px so both fixed-size block grids fit before switching to two columns.
+
 No API request, grading, browser storage, audio, transcript, or telemetry is
 introduced. The production build contains only the application entry point;
 the synthetic test harness lives under `tests/e2e` and is not a production entry.
@@ -52,11 +57,13 @@ Chromium's protocol. Real hardware and Firefox/WebKit remain unverified.
 - Pure reducer: **8 tests passed**, covering every quantity, corrections, ignored
   boundary operations, immutable snapshots, unique terminal events, reset, and
   timestamp ordering independence.
-- Browser: **9 tests passed**, covering the real entry point, mouse drag/return,
+- Browser: **20 tests passed**, covering the real entry point, mouse drag/return,
   outside drops and cancellation, keyboard/tap controls, neutral completion at
   0/6/7/10, double-click protection, callback delivery under React StrictMode,
   frozen traces, reset, all equation layouts, mobile touch, and storage/network
-  boundaries.
+  boundaries. The additional regressions cover held Enter/Space across both
+  finish/reset transitions and horizontal fit at 320/360/640/641/695/700/701/768/1100px
+  with zero and ten blocks, including the completion controls.
 - Typecheck and production build: **passed**, including the existing contract
   checks and new browser test/harness type checks.
 - Dependency signatures: **27 verified**, with **16 verified attestations**.
@@ -77,3 +84,13 @@ Apache-2.0 licensed, with no package lifecycle scripts. Browser binaries and vis
 review captures are local artifacts and are not committed. CI installs the browser
 explicitly and runs both web suites; screenshot/video/trace capture stays off by
 default.
+
+## PR #65 review regressions
+
+Before changing the implementation, the new held-Enter regression failed because
+six answer blocks became zero, and the 641px layout regression failed because
+the document width was 664px. Both tests pass after the fixes, along with the full
+web suite and typecheck/build. Visual inspection at 641px and 701px also passed
+on either side of the new breakpoint. The corrections touch only the screen, its existing
+stylesheet/browser tests, and this verification document; no dependencies,
+contracts, or API code changed. The PR remains at 17 changed files.
