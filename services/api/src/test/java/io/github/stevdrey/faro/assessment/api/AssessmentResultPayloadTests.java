@@ -4,6 +4,7 @@ package io.github.stevdrey.faro.assessment.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.stevdrey.faro.assessment.ActionMathState;
 import io.github.stevdrey.faro.assessment.AssessmentResult;
 import io.github.stevdrey.faro.assessment.NextAction;
@@ -24,9 +25,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.json.JsonReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.cfg.CoercionAction;
 import tools.jackson.databind.cfg.CoercionInputShape;
 import tools.jackson.databind.cfg.EnumFeature;
@@ -151,11 +154,30 @@ class AssessmentResultPayloadTests {
         assertThatThrownBy(() -> assessmentJson.read(json)).isInstanceOf(JacksonException.class);
     }
 
+    static Stream<Arguments> lenientSyntax() {
+        return Stream.of(
+                Arguments.of("single quotes", VALID.replace("\"synthetic-v1\"", "'synthetic-v1'")),
+                Arguments.of("unquoted name", VALID.replace("\"nextAction\"", "nextAction")),
+                Arguments.of("java comment", VALID.replace("{", "{/* note */")),
+                Arguments.of("yaml comment", VALID.replace("\"nextAction\"", "# note\n\"nextAction\"")),
+                Arguments.of("trailing comma", VALID.replace("\"synthetic-v1\"}", "\"synthetic-v1\",}")),
+                Arguments.of("leading zero", VALID.replace("\"schemaVersion\":1", "\"schemaVersion\":01")),
+                Arguments.of("leading plus", VALID.replace("\"schemaVersion\":1", "\"schemaVersion\":+1")),
+                Arguments.of("missing value", VALID.replace("[\"synthetic.coherent.v1\"]", "[\"synthetic.coherent.v1\",,]")));
+    }
+
+    @ParameterizedTest(name = "Reject lenient syntax: {0}")
+    @MethodSource("lenientSyntax")
+    void rejectsLenientSyntax(String name, String json) {
+        assertThat(json).isNotEqualTo(VALID);
+        assertThatThrownBy(() -> assessmentJson.read(json)).isInstanceOf(JacksonException.class);
+    }
+
     @Test
     void rejectsNullRootsAndWrites() {
-        assertThatThrownBy(() -> assessmentJson.read("null")).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> assessmentJson.read("null")).isInstanceOf(JacksonException.class);
         assertThatThrownBy(() -> assessmentJson.read(new ByteArrayInputStream("null".getBytes(StandardCharsets.UTF_8))))
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(JacksonException.class);
         assertThatThrownBy(() -> assessmentJson.write(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> AssessmentResultPayload.from(null)).isInstanceOf(NullPointerException.class);
     }
@@ -210,6 +232,17 @@ class AssessmentResultPayloadTests {
                         .setCoercion(CoercionInputShape.Boolean, CoercionAction.TryConvert))
                 .withCoercionConfig(LogicalType.Enum, config -> config
                         .setCoercion(CoercionInputShape.Integer, CoercionAction.TryConvert))
+                .enable(JsonReadFeature.ALLOW_JAVA_COMMENTS,
+                        JsonReadFeature.ALLOW_YAML_COMMENTS,
+                        JsonReadFeature.ALLOW_SINGLE_QUOTES,
+                        JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES,
+                        JsonReadFeature.ALLOW_LEADING_ZEROS_FOR_NUMBERS,
+                        JsonReadFeature.ALLOW_LEADING_PLUS_SIGN_FOR_NUMBERS,
+                        JsonReadFeature.ALLOW_MISSING_VALUES,
+                        JsonReadFeature.ALLOW_TRAILING_COMMA)
+                .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+                .changeDefaultPropertyInclusion(inclusion -> JsonInclude.Value.construct(
+                        JsonInclude.Include.NON_EMPTY, JsonInclude.Include.NON_EMPTY))
                 .build();
         var strict = new AssessmentResultPayloadJson(permissive);
         invalidPayloads().forEach(arguments -> {
@@ -221,13 +254,22 @@ class AssessmentResultPayloadTests {
             assertThatThrownBy(() -> strict.read(json.toString())).as("%s", args[0])
                     .isInstanceOf(JacksonException.class);
         });
+        lenientSyntax().forEach(arguments -> {
+            Object[] args = arguments.get();
+            assertThatThrownBy(() -> strict.read((String) args[1])).as("%s", args[0])
+                    .isInstanceOf(JacksonException.class);
+        });
+        assertThat(permissive.isEnabled(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)).isTrue();
+        assertThat(mapper.readTree(strict.write(strict.read(VALID)))).isEqualTo(mapper.readTree(VALID));
+        // Naming and inclusion are pinned: empty provenance is written and camelCase names are kept.
+        var incomplete = AssessmentResultPayload.from(new AssessmentResult(ActionMathState.SIN_TERMINAR,
+                StrategyEvidenceState.NO_EVALUABLE, NextAction.CONTINUAR, List.of(), "synthetic-v1"));
+        var written = strict.write(incomplete);
+        assertThat(mapper.readTree(written).get("ruleIds").isArray()).isTrue();
+        assertThat(mapper.readTree(written).has("schemaVersion")).isTrue();
+        assertThat(strict.read(written)).isEqualTo(incomplete);
         var extra = (ObjectNode) mapper.readTree(VALID);
         extra.put("extra", true);
-        assertThat(permissive.readValue(extra.toString(), AssessmentResultPayload.class)).isNotNull();
-        var encoded = mapper.readTree(strict.write(strict.read(VALID)));
-        assertThat(encoded).isEqualTo(mapper.readTree(VALID));
-        assertThat(permissive.isEnabled(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)).isTrue();
-        assertThat(mapper.readValue(extra.toString(), AssessmentResultPayload.class)).isNotNull();
         assertThatThrownBy(() -> assessmentJson.read(extra.toString())).isInstanceOf(JacksonException.class);
     }
 

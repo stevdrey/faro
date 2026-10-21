@@ -37,7 +37,9 @@ class AssessmentResultTests {
                 NextAction.CONTINUAR, List.of(), "v1")).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new AssessmentResult(ActionMathState.CORRECTA, StrategyEvidenceState.COHERENTE,
                 null, List.of(), "v1")).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> result(null, "v1")).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> result(null, "v1")).isInstanceOf(NullPointerException.class).hasMessage("ruleIds");
+        assertThatThrownBy(() -> result(Arrays.asList("synthetic.valid.v1", null), "v1"))
+                .isInstanceOf(NullPointerException.class).hasMessage("ruleId");
     }
 
     @ParameterizedTest

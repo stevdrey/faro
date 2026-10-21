@@ -5,6 +5,7 @@ import io.github.stevdrey.faro.assessment.ActionMathState;
 import io.github.stevdrey.faro.assessment.AssessmentResult;
 import io.github.stevdrey.faro.assessment.NextAction;
 import io.github.stevdrey.faro.assessment.StrategyEvidenceState;
+import io.github.stevdrey.faro.common.Text;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,9 +23,11 @@ public record AssessmentResultPayload(
         if (schemaVersion != SCHEMA_VERSION) {
             throw new IllegalArgumentException("Unsupported assessment schema version");
         }
-        var validated = new AssessmentResult(
-                actionMathState, strategyEvidenceState, nextAction, ruleIds, assessmentVersion);
-        ruleIds = validated.ruleIds();
+        Objects.requireNonNull(actionMathState, "actionMathState");
+        Objects.requireNonNull(strategyEvidenceState, "strategyEvidenceState");
+        Objects.requireNonNull(nextAction, "nextAction");
+        ruleIds = AssessmentResult.copyRuleIds(ruleIds);
+        Text.requireNonBlank(assessmentVersion, "assessmentVersion");
     }
 
     public AssessmentResult toDomain() {

@@ -18,7 +18,7 @@ The processing pipeline and safety policies below describe future behavior. This
 
 ## Inputs and evidence processing
 
-`assess(exercise, actionTrace, speechHypothesis?, clarifications[]) -> AssessmentResult` includes versioned `ruleIds` and evidence references. The deterministic math engine checks outcomes and steps; an `ActionInterpreter` interprets semantic moves; a bounded `ExplanationInterpreter` extracts only supported phrases and numbers; an `EvidenceAggregator` resolves uncertainty; a `FeedbackPolicy` chooses a bounded response.
+`assess(exercise, actionTrace, speechHypothesis?, clarifications[]) -> AssessmentResult` includes versioned `ruleIds`; structured evidence references are planned but are not part of the version 1 result. The deterministic math engine checks outcomes and steps; an `ActionInterpreter` interprets semantic moves; a bounded `ExplanationInterpreter` extracts only supported phrases and numbers; an `EvidenceAggregator` resolves uncertainty; a `FeedbackPolicy` chooses a bounded response.
 
 ## Safety constraints
 

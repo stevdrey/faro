@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.stevdrey.faro.assessment;
 
+import io.github.stevdrey.faro.common.Text;
 import java.util.List;
 import java.util.Objects;
 
@@ -16,15 +17,14 @@ public record AssessmentResult(
         Objects.requireNonNull(actionMathState, "actionMathState");
         Objects.requireNonNull(strategyEvidenceState, "strategyEvidenceState");
         Objects.requireNonNull(nextAction, "nextAction");
-        ruleIds = List.copyOf(ruleIds);
-        ruleIds.forEach(id -> requireNonBlank(id, "ruleId"));
-        requireNonBlank(assessmentVersion, "assessmentVersion");
+        ruleIds = copyRuleIds(ruleIds);
+        Text.requireNonBlank(assessmentVersion, "assessmentVersion");
     }
 
-    private static void requireNonBlank(String value, String name) {
-        Objects.requireNonNull(value, name);
-        if (value.isBlank()) {
-            throw new IllegalArgumentException(name + " must not be blank");
-        }
+    /** Validates and copies opaque rule identifiers without reordering or normalizing them. */
+    public static List<String> copyRuleIds(List<String> ruleIds) {
+        Objects.requireNonNull(ruleIds, "ruleIds");
+        ruleIds.forEach(id -> Text.requireNonBlank(id, "ruleId"));
+        return List.copyOf(ruleIds);
     }
 }
