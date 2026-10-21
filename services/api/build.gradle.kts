@@ -25,3 +25,11 @@ dependencies {
 }
 
 tasks.withType<Test> { useJUnitPlatform() }
+
+// Keep public examples in one place for API tests and future clients.
+tasks.processTestResources {
+    from("../../contracts/exercises") {
+        include("**/*.json")
+        into("exercises")
+    }
+}

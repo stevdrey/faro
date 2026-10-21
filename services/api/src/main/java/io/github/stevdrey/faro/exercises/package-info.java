@@ -1,2 +1,2 @@
-/** Deterministic exercise definitions and mathematical validation. No implementation yet. */
+/** Provider-independent exercise definitions. Public transport types live in the api subpackage. */
 package io.github.stevdrey.faro.exercises;

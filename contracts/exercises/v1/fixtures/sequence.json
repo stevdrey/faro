@@ -1,0 +1,8 @@
+{
+  "exerciseId": "sequence-30-28",
+  "schemaVersion": 1,
+  "type": "SEQUENCE",
+  "operands": { "terms": [30, 28] },
+  "visualModel": "NUMBER_LINE",
+  "difficulty": "EASY"
+}
