@@ -18,7 +18,7 @@ The future MVP 0.1 includes three exercise families (missing addend, sequences, 
 - `tools`: future reproducible ASR benchmarks.
 - `docs`: English architecture, design decisions, research protocol, supply-chain policy, and 41-issue backlog.
 
-Speech recognition and optional explanation interpretation will use **separate application-owned ports and replaceable adapters**. The first runtime candidate is local whisper.cpp; Moonshine and Vosk are benchmark candidates, not prerequisites. The future `LOCAL_ONLY` privacy policy must fail closed with no cloud fallback. No LLM is in the MVP assessment path.
+Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback; no real ASR runtime or audio endpoint is implemented yet. Optional explanation interpretation will use a separate port. The first runtime candidate is local whisper.cpp; Moonshine and Vosk are benchmark candidates, not prerequisites. The future `LOCAL_ONLY` privacy policy must fail closed with no cloud fallback. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
 
 **Compatibility note:** Gradle 9.8.1 supports Java 27, but Spring Boot 4.1.1 currently documents Java compatibility through Java 26 only. CI explicitly tests Java 27; this pairing remains experimental pending officially documented support.
 
@@ -46,7 +46,7 @@ curl -fsS http://127.0.0.1:8080/actuator/health
 # {"status":"UP"}
 ```
 
-To run separately: `gradle -p services/api bootRun` and `npm --prefix apps/web run dev`.
+To run separately: `gradle -p services/api bootRun --args='--spring.profiles.active=dev'` and `npm --prefix apps/web run dev`.
 
 ## Checks
 
