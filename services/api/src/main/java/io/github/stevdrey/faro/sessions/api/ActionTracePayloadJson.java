@@ -25,9 +25,13 @@ public class ActionTracePayloadJson {
                         DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES,
                         DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES,
                         DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-                .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+                // Rebuilt mappers inherit application settings; pin leniency off explicitly.
+                .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT,
+                        DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY,
+                        DeserializationFeature.UNWRAP_SINGLE_VALUE_ARRAYS)
                 .enable(EnumFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
-                .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
+                .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS,
+                        MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                 .withCoercionConfig(LogicalType.Textual, config -> config
                         .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
                         .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)

@@ -6,12 +6,18 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.github.stevdrey.faro.sessions.ActionEvent;
 import io.github.stevdrey.faro.sessions.ActionTrace;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 /** Version 1 transport contract. The caller supplies the starting quantity explicitly. */
 public record ActionTracePayload(int schemaVersion, int initialValue, List<Event> events) {
     public static final int SCHEMA_VERSION = 1;
+    private static final Pattern UTC_TIMESTAMP =
+            Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z");
 
     public ActionTracePayload {
         if (schemaVersion != SCHEMA_VERSION) {
@@ -58,7 +64,9 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
     public record PlaceBlock(int value, int step, String occurredAt) implements Event {
         public PlaceBlock {
-            new ActionEvent.PlaceBlock(value, step, timestamp(occurredAt));
+            Instant at = timestamp(occurredAt);
+            new ActionEvent.PlaceBlock(value, step, at);
+            occurredAt = at.toString();
         }
 
         @Override
@@ -69,7 +77,9 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
     public record RemoveBlock(int value, int step, String occurredAt) implements Event {
         public RemoveBlock {
-            new ActionEvent.RemoveBlock(value, step, timestamp(occurredAt));
+            Instant at = timestamp(occurredAt);
+            new ActionEvent.RemoveBlock(value, step, at);
+            occurredAt = at.toString();
         }
 
         @Override
@@ -80,7 +90,9 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
     public record JumpLeft(int value, int step, String occurredAt) implements Event {
         public JumpLeft {
-            new ActionEvent.JumpLeft(value, step, timestamp(occurredAt));
+            Instant at = timestamp(occurredAt);
+            new ActionEvent.JumpLeft(value, step, at);
+            occurredAt = at.toString();
         }
 
         @Override
@@ -91,7 +103,9 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
     public record JumpRight(int value, int step, String occurredAt) implements Event {
         public JumpRight {
-            new ActionEvent.JumpRight(value, step, timestamp(occurredAt));
+            Instant at = timestamp(occurredAt);
+            new ActionEvent.JumpRight(value, step, at);
+            occurredAt = at.toString();
         }
 
         @Override
@@ -102,7 +116,9 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
     public record FinishAttempt(int step, String occurredAt) implements Event {
         public FinishAttempt {
-            new ActionEvent.FinishAttempt(step, timestamp(occurredAt));
+            Instant at = timestamp(occurredAt);
+            new ActionEvent.FinishAttempt(step, at);
+            occurredAt = at.toString();
         }
 
         @Override
@@ -115,11 +131,17 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
         return new ActionTrace(events.stream().map(Event::toDomain).toList());
     }
 
+    /** Instant.parse is case-insensitive and accepts 24:00, leap seconds and extended years. */
     private static Instant timestamp(String occurredAt) {
         Objects.requireNonNull(occurredAt, "occurredAt");
-        if (!occurredAt.endsWith("Z")) {
+        if (!UTC_TIMESTAMP.matcher(occurredAt).matches()) {
             throw new IllegalArgumentException("occurredAt must be an ISO 8601 UTC timestamp ending in Z");
         }
-        return Instant.parse(occurredAt);
+        try {
+            String local = occurredAt.substring(0, occurredAt.length() - 1);
+            return LocalDateTime.parse(local).toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("occurredAt is not a valid UTC timestamp", e);
+        }
     }
 }

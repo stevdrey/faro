@@ -19,7 +19,7 @@ public final class ActionReplay {
                     if (e.value() > value) {
                         throw new IllegalArgumentException("Cannot remove more blocks than are available");
                     }
-                    value = Math.subtractExact(value, e.value());
+                    value -= e.value();
                 }
                 case ActionEvent.JumpLeft e -> value = Math.subtractExact(value, e.value());
                 case ActionEvent.JumpRight e -> value = Math.addExact(value, e.value());

@@ -124,6 +124,13 @@ class ActionTracePayloadTests {
                 invalid("zone-free timestamp", root -> event(root, 0).put("occurredAt", "2026-01-01T00:00:00")),
                 invalid("offset timestamp", root -> event(root, 0).put("occurredAt", "2025-12-31T18:00:00-06:00")),
                 invalid("non-Z UTC timestamp", root -> event(root, 0).put("occurredAt", "2026-01-01T00:00:00+00:00")),
+                invalid("lowercase separator timestamp", root -> event(root, 0).put("occurredAt", "2026-01-01t00:00:00Z")),
+                invalid("hour 24 timestamp", root -> event(root, 0).put("occurredAt", "2026-01-01T24:00:00Z")),
+                invalid("leap second timestamp", root -> event(root, 0).put("occurredAt", "2026-12-31T23:59:60Z")),
+                invalid("impossible date timestamp", root -> event(root, 0).put("occurredAt", "2026-02-30T00:00:00Z")),
+                invalid("extended year timestamp", root -> event(root, 0).put("occurredAt", "+12026-01-01T00:00:00Z")),
+                invalid("minute precision timestamp", root -> event(root, 0).put("occurredAt", "2026-01-01T00:00Z")),
+                invalid("excess fraction timestamp", root -> event(root, 0).put("occurredAt", "2026-01-01T00:00:00.1234567890Z")),
                 invalid("numeric timestamp", root -> event(root, 0).put("occurredAt", 0)),
                 invalid("fractional timestamp", root -> event(root, 0).put("occurredAt", 0.5)),
                 invalid("boolean timestamp", root -> event(root, 0).put("occurredAt", true)),
@@ -193,6 +200,20 @@ class ActionTracePayloadTests {
     }
 
     @Test
+    void canonicalizesEquivalentTimestamps() {
+        var padded = actionJson.read("""
+                {"schemaVersion":1,"initialValue":0,"events":[
+                  {"kind":"finishAttempt","step":1,"occurredAt":"2026-01-01T00:00:00.100Z"}
+                ]}
+                """);
+        assertThat(padded.events()).containsExactly(new ActionTracePayload.FinishAttempt(1, "2026-01-01T00:00:00.1Z"));
+        assertThat(padded.events().getFirst().occurredAt()).isEqualTo("2026-01-01T00:00:00.100Z");
+        assertThat(new ActionTracePayload.PlaceBlock(1, 1, "2026-01-01T00:00:00.000000000Z").occurredAt())
+                .isEqualTo(AT);
+        assertThat(ActionTracePayload.from(padded.initialValue(), padded.toDomain())).isEqualTo(padded);
+    }
+
+    @Test
     void rejectsNullPayloads() {
         assertThatThrownBy(() -> actionJson.read("null"))
                 .isInstanceOf(NullPointerException.class).hasMessage("payload");
@@ -249,6 +270,10 @@ class ActionTracePayloadTests {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ActionTracePayload.FinishAttempt(1, null))
                 .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ActionTracePayload.FinishAttempt(1, "yesterdayZ"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ActionTracePayload.FinishAttempt(1, "2026-02-30T00:00:00Z"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private JsonNode fixture(String name) throws IOException {

@@ -22,7 +22,7 @@ Each event has a `kind` discriminator, a positive integer `step`, and an `occurr
 
 All documented fields are required and non-null. Unknown fields and event kinds are rejected. JSON integers use Java's signed 32-bit range (`-2147483648` through `2147483647`); strings, booleans, and fractional numeric tokens (including `1.0`) are not coerced into integers. Movement magnitudes and steps must also be greater than zero. There are no coordinates, block identifiers, exercise answers, session identifiers, audio, or transcripts in this payload.
 
-`occurredAt` must be an ISO 8601 UTC timestamp ending in uppercase `Z`, for example `2026-01-01T00:00:00Z` or `2026-01-01T00:00:00.123456789Z`. Up to nanosecond precision is supported. Epoch numbers, dates without times, zone-free strings, and numeric timezone offsets are rejected. Wire timestamps are strings; the adapter converts them to domain `Instant` values. Projection back to JSON uses `Instant.toString()`, so equivalent timestamp formatting can be normalized without changing the instant.
+`occurredAt` must be an ISO 8601 UTC timestamp ending in uppercase `Z`, for example `2026-01-01T00:00:00Z` or `2026-01-01T00:00:00.123456789Z`. The shape is exactly `YYYY-MM-DDTHH:MM:SS[.fraction]Z` with a four-digit year, uppercase `T`, seconds, and one to nine fraction digits. Epoch numbers, dates without times, zone-free strings, numeric timezone offsets, impossible dates, hour `24`, and leap second `60` are rejected. Wire timestamps are strings; the adapter converts them to domain `Instant` values and stores the canonical `Instant.toString()` form, so equivalent spellings such as `.100Z` and `.1Z` decode to equal payloads.
 
 ## Ordering and replay
 
