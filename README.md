@@ -72,6 +72,59 @@ Read the [document index](docs/README.md), [MVP scope](docs/01-vision-and-mvp.md
 
 Eight epics (A–H) organize FARO-001…041. Start with a narrow vertical slice: `18 = 12 + □`, semantic visual actions, a replaceable local ASR, and conservative six-versus-seven clarification. Prefer small, testable pull requests and verification **summaries**, not raw personal evidence.
 
+## AI agent PR-size preflight (Claude Code and Codex)
+
+Faro allows **40 changed files maximum** per PR: 0–30 passes; 31–40 warns; 41+ fails. The
+[PR size policy](docs/verification/pr-size-guard.md) applies to all source, test,
+documentation, configuration, deleted, renamed and generated files. If an Issue
+would exceed 40 files, **stop and consult the repository owner** to agree on
+two or more logically separated, ordered PRs. Each PR must remain independently
+testable, buildable and secure; never remove necessary tests or weaken privacy
+or supply-chain protections to satisfy the limit.
+
+**Requirements:** Node.js 24, Git, a checkout with an `origin/main` reference,
+and a Claude Code or Codex version that supports project-scoped hooks.
+
+```bash
+git fetch origin main
+node .agents/scripts/pr-size-preflight.mjs
+node --test .agents/scripts/pr-size-preflight.test.mjs
+```
+
+The local preflight counts unique committed, staged, unstaged and non-ignored
+untracked paths relative to the merge base of `origin/main`; it is an estimate,
+not a replacement for GitHub's authoritative `PR file count` workflow check.
+For an intentionally stacked PR, fetch its base and use
+`PR_PREFLIGHT_BASE=origin/target-branch` or `--base origin/target-branch`.
+
+**Claude Code:** review `.claude/settings.json`, open Faro as a trusted project,
+and enable/approve its `PreToolUse` Bash hook. Inspect with `/hooks`.
+The hook checks recognizable `git push` and `gh pr create` commands.
+
+**Codex (CLI/desktop):** review `.codex/hooks.json`; enable and trust project
+hooks, then inspect with `/hooks` in an interactive Codex CLI session. If
+the desktop cannot establish hook trust, use the CLI first and restart the
+desktop session. Enterprise settings or older versions may disable hooks.
+When unsure, run the manual preflight before publishing.
+
+The hooks are a local early warning/block for recognized shell publication
+commands. **GitHub Actions is authoritative only when its `PR file count`
+status is required by an Active branch ruleset on `main`.** The
+[policy document](docs/verification/pr-size-guard.md) explains this administrator
+setup. Documentation: [Claude Code hooks](https://code.claude.com/docs/en/hooks)
+and [Codex hooks](https://learn.chatgpt.com/docs/hooks).
+
+## Repository agent skill: GitHub Issue Executive Summary
+
+Project Faro includes the `github-issue-executive-summary` skill for **Codex** and **Claude Code**. The instructions are identical and installed at:
+
+- `.agents/skills/github-issue-executive-summary/SKILL.md` (Codex).
+- `.claude/skills/github-issue-executive-summary/SKILL.md` (Claude Code).
+
+After an implementing PR is complete, ask an agent to **prepare an executive summary for the associated GitHub Issue**. The skill produces an accessible English report for non-technical stakeholders, using verified PR/Issue evidence and exact test results. It is **not** a PR approval or merge policy. Publishing a comment is a separate, public write action: **only post to the Issue when explicitly requested**; otherwise provide a draft. If no tests ran or evidence is unavailable, state the limitation rather than fabricate results.
+
+No extra dependencies or setup scripts are required. The CI `agent-skills` check ensures both agent-specific copies remain identical.
+
 ## Privacy and license
 
 **Do not use this initial scaffold with real children's data or expose it publicly.** The web and API bind to loopback. Recording, adult authorization, consent, deletion, and `LOCAL_ONLY` enforcement are **not yet implemented**. Do not commit recordings, transcripts, personal information, model weights, or secrets.

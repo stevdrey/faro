@@ -17,4 +17,6 @@ All project documentation and GitHub work items are written in English. The user
 | [ADR-0001](adr/0001-modular-monolith.md) | Modular monolith and separately managed local ASR |
 | [ADR-0002](adr/0002-provider-independent-models.md) | Own AI capability ports and fail-closed local policy |
 
+| [GitHub Issue Executive Summary skill](../.agents/skills/github-issue-executive-summary/SKILL.md) | Repo-local skill for stakeholder summaries on GitHub Issues (Codex/Claude Code) |
+
 Source basis: *Proyecto Faro — integral kickoff document*, proposed v0.1, 16 October 2026. Architecture decisions and some provider compatibility assumptions still require confirmation; choosing Java 27 does not imply Spring Boot's published support extends to Java 27.

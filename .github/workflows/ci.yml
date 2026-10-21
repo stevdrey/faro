@@ -76,4 +76,22 @@ jobs:
         with:
           fail-on-severity: high
 
+  agent-skills:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check agent skill mirrors and metadata
+        run: |
+          set -euo pipefail
+          codex=".agents/skills/github-issue-executive-summary/SKILL.md"
+          claude=".claude/skills/github-issue-executive-summary/SKILL.md"
+          test -f "$codex"
+          test -f "$claude"
+          cmp "$codex" "$claude"
+          grep -qx "name: github-issue-executive-summary" "$codex"
+          grep -q "^## Checklist Before Posting$" "$codex"
+
 # No uploaded child audio, model weights, credential-bearing artifacts or automatic PR privilege escalation.
