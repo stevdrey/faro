@@ -9,6 +9,9 @@ Thumbs.db
 *~
 
 # Credentials and per-developer config
+# Only the shared Codex hook definition is tracked; personal Codex files are ignored.
+.codex/*
+!.codex/hooks.json
 .env
 .env.*
 !.env.example
