@@ -9,7 +9,11 @@ export type PlaceBlock = EventMetadata & { readonly kind: 'placeBlock'; readonly
 export type RemoveBlock = EventMetadata & { readonly kind: 'removeBlock'; readonly value: number }
 export type JumpLeft = EventMetadata & { readonly kind: 'jumpLeft'; readonly value: number }
 export type JumpRight = EventMetadata & { readonly kind: 'jumpRight'; readonly value: number }
-export type FinishAttempt = EventMetadata & { readonly kind: 'finishAttempt' }
+export type FinishAttempt = EventMetadata & {
+  readonly kind: 'finishAttempt'
+  /** Forbid magnitudes on structural assignments, including spreads and intermediate variables. */
+  readonly value?: never
+}
 
 export type ActionEvent = PlaceBlock | RemoveBlock | JumpLeft | JumpRight | FinishAttempt
 export type ActionKind = ActionEvent['kind']

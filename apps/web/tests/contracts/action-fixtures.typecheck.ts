@@ -25,7 +25,7 @@ const events: readonly (MovementShape | FinishShape)[] = [
 const eventKeys: [
   Exact<keyof typeof incomplete.events[number], keyof PlaceBlock>,
   Exact<keyof MovementShape, keyof PlaceBlock>,
-  Exact<Exclude<keyof FinishShape, 'value'>, keyof FinishAttempt>,
+  Exact<keyof FinishShape, keyof FinishAttempt>,
 ] = [true, true, true]
 
 // Reject extra event fields even though structural assignment above allows them.

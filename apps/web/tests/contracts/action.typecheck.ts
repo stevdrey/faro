@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { ActionEvent, ActionKind, ActionTracePayload } from '../../src/contracts/action'
+import type { ActionEvent, ActionKind, ActionTracePayload, FinishAttempt } from '../../src/contracts/action'
 
 const metadata = { step: 1, occurredAt: '2026-01-01T00:00:00Z' } as const
 const place = { ...metadata, kind: 'placeBlock', value: 10 } as const satisfies ActionEvent
@@ -14,6 +14,16 @@ const empty = { schemaVersion: 1, initialValue: 28, events: [] } as const satisf
 const noValue: ActionEvent = { ...metadata, kind: 'jumpLeft' }
 // @ts-expect-error Finishing does not carry a magnitude.
 const finishValue: ActionEvent = { ...finish, value: 0 }
+// @ts-expect-error A spread must not carry a movement magnitude into a finish event.
+const finishFromSpread: ActionEvent = { ...place, kind: 'finishAttempt', step: 2 }
+const intermediateFinish = { ...place, kind: 'finishAttempt', step: 2 } as const
+// @ts-expect-error Structural assignment must reject a finish event retaining a magnitude.
+const finishFromVariable: ActionEvent = intermediateFinish
+// @ts-expect-error The concrete finish variant must reject the same intermediate object.
+const finishVariantFromVariable: FinishAttempt = intermediateFinish
+const intermediateValidFinish = { ...metadata, kind: 'finishAttempt' } as const
+const validFinishFromVariable: FinishAttempt = intermediateValidFinish
+const validFinishEvent: ActionEvent = validFinishFromVariable
 // @ts-expect-error Unknown event kinds cannot enter the contract.
 const unknown: ActionKind = 'dragSprite'
 // @ts-expect-error Step is required for every event.
@@ -34,8 +44,9 @@ function movement(event: ActionEvent): number {
     case 'removeBlock':
     case 'jumpLeft': return -event.value
     case 'finishAttempt':
-      // @ts-expect-error Narrowing excludes movement-only fields.
-      void event.value
+      // @ts-expect-error A narrowed finish event has no numeric magnitude.
+      const finishMagnitude: number = event.value
+      void finishMagnitude
       return 0
     default: {
       const exhaustive: never = event
@@ -53,4 +64,7 @@ function readonlyContract(payload: ActionTracePayload): void {
   payload.events[0].step = 99
 }
 
-void [place, remove, left, right, finish, trace, empty, movement, readonlyContract]
+void [
+  place, remove, left, right, finish, trace, empty, movement, readonlyContract,
+  validFinishFromVariable, validFinishEvent,
+]
