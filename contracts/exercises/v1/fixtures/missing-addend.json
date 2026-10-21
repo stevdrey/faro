@@ -4,5 +4,6 @@
   "type": "MISSING_ADDEND",
   "operands": { "total": 18, "knownAddend": 12 },
   "visualModel": "BLOCKS",
-  "difficulty": "EASY"
+  "difficulty": "EASY",
+  "presentation": "TOTAL_EQUALS_KNOWN_PLUS_MISSING"
 }

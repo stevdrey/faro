@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import tools.jackson.core.JacksonException;
@@ -37,6 +38,12 @@ class ExercisePayloadTests {
     static Stream<Arguments> fixtures() {
         return Stream.of(
                 Arguments.of("missing-addend", ExercisePayload.MissingAddend.class,
+                        ExerciseType.MISSING_ADDEND, new ExerciseOperands.MissingAddend(18, 12),
+                        new ExercisePayload.MissingAddendOperands(18, 12), 6),
+                Arguments.of("missing-addend-known-first", ExercisePayload.MissingAddend.class,
+                        ExerciseType.MISSING_ADDEND, new ExerciseOperands.MissingAddend(18, 12),
+                        new ExercisePayload.MissingAddendOperands(18, 12), 6),
+                Arguments.of("missing-addend-missing-first", ExercisePayload.MissingAddend.class,
                         ExerciseType.MISSING_ADDEND, new ExerciseOperands.MissingAddend(18, 12),
                         new ExercisePayload.MissingAddendOperands(18, 12), 6),
                 Arguments.of("sequence", ExercisePayload.Sequence.class,
@@ -60,6 +67,9 @@ class ExercisePayloadTests {
         assertThat(payload.type()).isEqualTo(type);
         assertThat(payload.operands()).isEqualTo(wireOperands);
         assertThat(payload.schemaVersion()).isEqualTo(1);
+        if (payload instanceof ExercisePayload.MissingAddend missingAddend) {
+            assertThat(missingAddend.presentation().name()).isEqualTo(json.get("presentation").asString());
+        }
         assertThat(mapper.readTree(exerciseJson.write(payload))).isEqualTo(json);
     }
 
@@ -75,7 +85,10 @@ class ExercisePayloadTests {
                 VisualModel.valueOf(json.get("visualModel").asString()),
                 Difficulty.valueOf(json.get("difficulty").asString()), expectedResult);
 
-        ExercisePayload payload = ExercisePayload.from(definition);
+        ExercisePayload payload = type == ExerciseType.MISSING_ADDEND
+                ? ExercisePayload.from(definition,
+                        ExercisePayload.MissingAddendPresentation.valueOf(json.get("presentation").asString()))
+                : ExercisePayload.from(definition);
         JsonNode serialized = mapper.readTree(exerciseJson.write(payload));
 
         assertThat(definition.type()).isEqualTo(type);
@@ -83,18 +96,22 @@ class ExercisePayloadTests {
         assertThat(payload.type()).isEqualTo(type);
         assertThat(payload.operands()).isEqualTo(wireOperands);
         assertThat(serialized).isEqualTo(json);
+        List<String> publicFields = new ArrayList<>(List.of(
+                "exerciseId", "schemaVersion", "type", "operands", "visualModel", "difficulty"));
+        if (type == ExerciseType.MISSING_ADDEND) {
+            publicFields.add("presentation");
+        }
         assertThat(serialized.properties()).extracting(java.util.Map.Entry::getKey)
-                .containsExactlyInAnyOrder(
-                        "exerciseId", "schemaVersion", "type", "operands", "visualModel", "difficulty");
+                .containsExactlyInAnyOrderElementsOf(publicFields);
         assertThat(serialized.findValues("expectedResult")).isEmpty();
     }
 
     static Stream<Arguments> invalidPayloads() {
         Stream<Arguments> missingFields = Stream.of(
-                "exerciseId", "schemaVersion", "type", "operands", "visualModel", "difficulty")
+                "exerciseId", "schemaVersion", "type", "operands", "visualModel", "difficulty", "presentation")
                 .map(field -> invalid("missing " + field, root -> root.remove(field)));
         Stream<Arguments> nullFields = Stream.of(
-                "exerciseId", "schemaVersion", "type", "operands", "visualModel", "difficulty")
+                "exerciseId", "schemaVersion", "type", "operands", "visualModel", "difficulty", "presentation")
                 .map(field -> invalid("null " + field, root -> root.putNull(field)));
         Stream<Arguments> malformed = Stream.of(
                 invalid("blank id", root -> root.put("exerciseId", " \t")),
@@ -109,6 +126,9 @@ class ExercisePayloadTests {
                 invalid("unknown visual model", root -> root.put("visualModel", "SPRITES")),
                 invalid("unknown difficulty", root -> root.put("difficulty", "EXPERT")),
                 invalid("numeric enum", root -> root.put("difficulty", 0)),
+                invalid("unknown presentation", root -> root.put("presentation", "FIRST")),
+                invalid("numeric presentation", root -> root.put("presentation", 0)),
+                invalid("numeric-string presentation", root -> root.put("presentation", "0")),
                 invalid("unexpected property", root -> root.put("extra", "ignored?")),
                 invalid("public solution", root -> root.put("expectedResult", 6)),
                 invalid("missing total", root -> operands(root).remove("total")),
@@ -119,45 +139,45 @@ class ExercisePayloadTests {
                 invalid("boolean total", root -> operands(root).put("total", true)),
                 invalid("out-of-range total", root -> operands(root).put("total", 2147483648L)),
                 invalid("hidden operand", root -> operands(root).put("expectedResult", 6)),
-                invalid("mismatched family", root -> root.put("type", "SUBTRACTION")),
+                invalid("mismatched family", root -> changeFamily(root, ExerciseType.SUBTRACTION)),
                 invalid("missing minuend", root -> {
-                    root.put("type", "SUBTRACTION");
+                    changeFamily(root, ExerciseType.SUBTRACTION);
                     root.putObject("operands").put("subtrahend", 28);
                 }),
                 invalid("missing subtrahend", root -> {
-                    root.put("type", "SUBTRACTION");
+                    changeFamily(root, ExerciseType.SUBTRACTION);
                     root.putObject("operands").put("minuend", 53);
                 }),
                 invalid("missing terms", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands");
                 }),
                 invalid("null terms", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands").putNull("terms");
                 }),
                 invalid("empty sequence", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands").putArray("terms");
                 }),
                 invalid("short sequence", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands").putArray("terms").add(30);
                 }),
                 invalid("null term", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands").putArray("terms").add(30).addNull();
                 }),
                 invalid("fractional term", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands").putArray("terms").add(30).add(28.5);
                 }),
                 invalid("string term", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     root.putObject("operands").putArray("terms").add(30).add("28");
                 }),
                 invalid("too many terms", root -> {
-                    root.put("type", "SEQUENCE");
+                    changeFamily(root, ExerciseType.SEQUENCE);
                     var terms = root.putObject("operands").putArray("terms");
                     for (int i = 0; i <= ExerciseOperands.Sequence.MAX_TERMS; i++) {
                         terms.add(i);
@@ -218,8 +238,47 @@ class ExercisePayloadTests {
         assertThatThrownBy(() -> new ExerciseOperands.Sequence(null))
                 .isInstanceOf(NullPointerException.class).hasMessage("terms");
         assertThatThrownBy(() -> new ExercisePayload.MissingAddend(
-                "id", 2, new ExercisePayload.MissingAddendOperands(18, 12), VisualModel.BLOCKS, Difficulty.EASY))
+                "id", 2, new ExercisePayload.MissingAddendOperands(18, 12), VisualModel.BLOCKS, Difficulty.EASY,
+                ExercisePayload.MissingAddendPresentation.TOTAL_EQUALS_KNOWN_PLUS_MISSING))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void projectionDefaultsToTheMvpLayoutAndCanSelectAnAlternative() {
+        ExerciseDefinition definition = new ExerciseDefinition(
+                "synthetic", new ExerciseOperands.MissingAddend(18, 12),
+                VisualModel.BLOCKS, Difficulty.EASY, 6);
+        var mvp = (ExercisePayload.MissingAddend) ExercisePayload.from(definition);
+        var alternative = ExercisePayload.from(definition,
+                ExercisePayload.MissingAddendPresentation.MISSING_PLUS_KNOWN_EQUALS_TOTAL);
+
+        assertThat(mvp.presentation())
+                .isEqualTo(ExercisePayload.MissingAddendPresentation.TOTAL_EQUALS_KNOWN_PLUS_MISSING);
+        assertThat(alternative.presentation())
+                .isEqualTo(ExercisePayload.MissingAddendPresentation.MISSING_PLUS_KNOWN_EQUALS_TOTAL);
+        assertThat(alternative.operands()).isEqualTo(mvp.operands());
+        assertThat(alternative.exerciseId()).isEqualTo(mvp.exerciseId());
+        assertThatThrownBy(() -> ExercisePayload.from(definition, null))
+                .isInstanceOf(NullPointerException.class).hasMessage("presentation");
+    }
+
+    @Test
+    void missingAddendPresentationCannotBeAppliedToAnotherFamily() {
+        ExerciseDefinition definition = new ExerciseDefinition(
+                "synthetic", new ExerciseOperands.Sequence(List.of(30, 28)),
+                VisualModel.NUMBER_LINE, Difficulty.EASY, 26);
+        assertThatThrownBy(() -> ExercisePayload.from(definition,
+                ExercisePayload.MissingAddendPresentation.MISSING_PLUS_KNOWN_EQUALS_TOTAL))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest(name = "{0}: reject missing-addend presentation")
+    @ValueSource(strings = {"sequence", "subtraction"})
+    void otherFamiliesRejectMissingAddendPresentation(String fixture) throws IOException {
+        ObjectNode json = (ObjectNode) fixture(fixture);
+        json.put("presentation", "TOTAL_EQUALS_KNOWN_PLUS_MISSING");
+        assertThatThrownBy(() -> exerciseJson.read(mapper.writeValueAsString(json)))
+                .isInstanceOf(JacksonException.class);
     }
 
     private JsonNode fixture(String name) throws IOException {
@@ -231,6 +290,11 @@ class ExercisePayloadTests {
 
     private static ObjectNode operands(ObjectNode root) {
         return (ObjectNode) root.get("operands");
+    }
+
+    private static void changeFamily(ObjectNode root, ExerciseType type) {
+        root.put("type", type.name());
+        root.remove("presentation");
     }
 
     private static Arguments invalid(String name, Consumer<ObjectNode> mutate) {

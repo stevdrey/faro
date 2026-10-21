@@ -1,0 +1,9 @@
+{
+  "exerciseId": "missing-addend-known-first-18-12",
+  "schemaVersion": 1,
+  "type": "MISSING_ADDEND",
+  "operands": { "total": 18, "knownAddend": 12 },
+  "visualModel": "BLOCKS",
+  "difficulty": "EASY",
+  "presentation": "KNOWN_PLUS_MISSING_EQUALS_TOTAL"
+}

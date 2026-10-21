@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 export type VisualModel = 'BLOCKS' | 'NUMBER_LINE' | 'TENS_AND_ONES'
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD'
+export type MissingAddendPresentation =
+  | 'TOTAL_EQUALS_KNOWN_PLUS_MISSING'
+  | 'KNOWN_PLUS_MISSING_EQUALS_TOTAL'
+  | 'MISSING_PLUS_KNOWN_EQUALS_TOTAL'
 
 interface ExerciseMetadata {
   readonly exerciseId: string
@@ -12,6 +16,7 @@ interface ExerciseMetadata {
 export type MissingAddendExercise = ExerciseMetadata & {
   readonly type: 'MISSING_ADDEND'
   readonly operands: { readonly total: number; readonly knownAddend: number }
+  readonly presentation: MissingAddendPresentation
 }
 
 export type SequenceExercise = ExerciseMetadata & {

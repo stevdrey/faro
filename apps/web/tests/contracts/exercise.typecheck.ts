@@ -8,6 +8,13 @@ const metadata = {
 const missingAddend = {
   ...metadata, type: 'MISSING_ADDEND', visualModel: 'BLOCKS',
   operands: { total: 18, knownAddend: 12 },
+  presentation: 'TOTAL_EQUALS_KNOWN_PLUS_MISSING',
+} as const satisfies Exercise
+const knownFirst = {
+  ...missingAddend, presentation: 'KNOWN_PLUS_MISSING_EQUALS_TOTAL',
+} as const satisfies Exercise
+const missingFirst = {
+  ...missingAddend, presentation: 'MISSING_PLUS_KNOWN_EQUALS_TOTAL',
 } as const satisfies Exercise
 const sequence = {
   ...metadata, type: 'SEQUENCE', visualModel: 'NUMBER_LINE',
@@ -34,6 +41,12 @@ const incomplete: Exercise = { type: 'SEQUENCE', operands: { terms: [30, 28] } }
 const stringOperand: Exercise = { ...subtraction, operands: { minuend: '53', subtrahend: 28 } }
 // @ts-expect-error Unknown exercise types cannot enter the public union.
 const unknownType: ExerciseType = 'MULTIPLICATION'
+// @ts-expect-error Missing-addend layout is explicit and uses versioned enum values.
+const unknownPresentation: Exercise = { ...missingAddend, presentation: 'FIRST' }
+// @ts-expect-error A missing-addend payload must include its presentation.
+const noPresentation: Exercise = { ...metadata, type: 'MISSING_ADDEND', visualModel: 'BLOCKS', operands: missingAddend.operands }
+// @ts-expect-error Sequence payloads do not use missing-addend presentation.
+const wrongPresentationFamily: Exercise = { ...sequence, presentation: missingAddend.presentation }
 
 // Check that clients can narrow by type and access only that family's fields.
 function visibleInput(exercise: Exercise): number {
@@ -48,4 +61,4 @@ function visibleInput(exercise: Exercise): number {
   }
 }
 
-void [missingAddend, sequence, subtraction, visibleInput]
+void [missingAddend, knownFirst, missingFirst, sequence, subtraction, visibleInput]

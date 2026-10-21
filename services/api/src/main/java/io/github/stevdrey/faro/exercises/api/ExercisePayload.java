@@ -36,12 +36,30 @@ public sealed interface ExercisePayload {
         Difficulty difficulty = definition.difficulty();
         return switch (definition.operands()) {
             case ExerciseOperands.MissingAddend o -> new MissingAddend(
-                    id, SCHEMA_VERSION, MissingAddendOperands.from(o), visualModel, difficulty);
+                    id, SCHEMA_VERSION, MissingAddendOperands.from(o), visualModel, difficulty,
+                    MissingAddendPresentation.TOTAL_EQUALS_KNOWN_PLUS_MISSING);
             case ExerciseOperands.Sequence o -> new Sequence(
                     id, SCHEMA_VERSION, SequenceOperands.from(o), visualModel, difficulty);
             case ExerciseOperands.Subtraction o -> new Subtraction(
                     id, SCHEMA_VERSION, SubtractionOperands.from(o), visualModel, difficulty);
         };
+    }
+
+    /** Select a layout explicitly without changing the mathematical definition or its answer. */
+    static MissingAddend from(ExerciseDefinition definition, MissingAddendPresentation presentation) {
+        Objects.requireNonNull(definition, "definition");
+        if (!(definition.operands() instanceof ExerciseOperands.MissingAddend operands)) {
+            throw new IllegalArgumentException("Missing-addend presentation requires missing-addend operands");
+        }
+        return new MissingAddend(definition.exerciseId(), SCHEMA_VERSION, MissingAddendOperands.from(operands),
+                definition.visualModel(), definition.difficulty(), presentation);
+    }
+
+    /** Wire values are part of schema version 1; the missing value is never included. */
+    enum MissingAddendPresentation {
+        TOTAL_EQUALS_KNOWN_PLUS_MISSING,
+        KNOWN_PLUS_MISSING_EQUALS_TOTAL,
+        MISSING_PLUS_KNOWN_EQUALS_TOTAL
     }
 
     /** Wire operand shapes, decoupled from domain record names so v1 JSON changes only deliberately. */
@@ -72,9 +90,11 @@ public sealed interface ExercisePayload {
 
     record MissingAddend(
             String exerciseId, int schemaVersion, MissingAddendOperands operands,
-            VisualModel visualModel, Difficulty difficulty) implements ExercisePayload {
+            VisualModel visualModel, Difficulty difficulty,
+            MissingAddendPresentation presentation) implements ExercisePayload {
         public MissingAddend {
             validate(exerciseId, schemaVersion, operands, visualModel, difficulty);
+            Objects.requireNonNull(presentation, "presentation");
         }
 
         @Override
