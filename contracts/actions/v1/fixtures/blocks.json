@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "initialValue": 0,
+  "events": [
+    { "kind": "placeBlock", "value": 10, "step": 1, "occurredAt": "2026-01-01T00:00:00Z" },
+    { "kind": "removeBlock", "value": 4, "step": 2, "occurredAt": "2026-01-01T00:00:01Z" },
+    { "kind": "finishAttempt", "step": 3, "occurredAt": "2026-01-01T00:00:02Z" }
+  ]
+}
