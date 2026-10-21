@@ -72,6 +72,17 @@ Read the [document index](docs/README.md), [MVP scope](docs/01-vision-and-mvp.md
 
 Eight epics (A–H) organize FARO-001…041. Start with a narrow vertical slice: `18 = 12 + □`, semantic visual actions, a replaceable local ASR, and conservative six-versus-seven clarification. Prefer small, testable pull requests and verification **summaries**, not raw personal evidence.
 
+## Repository agent skill: GitHub Issue Executive Summary
+
+Project Faro includes the `github-issue-executive-summary` skill for **Codex** and **Claude Code**. The instructions are identical and installed at:
+
+- `.agents/skills/github-issue-executive-summary/SKILL.md` (Codex).
+- `.claude/skills/github-issue-executive-summary/SKILL.md` (Claude Code).
+
+After an implementing PR is complete, ask an agent to **prepare an executive summary for the associated GitHub Issue**. The skill produces an accessible English report for non-technical stakeholders, using verified PR/Issue evidence and exact test results. It is **not** a PR approval or merge policy. Publishing a comment is a separate, public write action: **only post to the Issue when explicitly requested**; otherwise provide a draft. If no tests ran or evidence is unavailable, state the limitation rather than fabricate results.
+
+No extra dependencies or setup scripts are required. The CI `agent-skills` check ensures both agent-specific copies remain identical.
+
 ## Privacy and license
 
 **Do not use this initial scaffold with real children's data or expose it publicly.** The web and API bind to loopback. Recording, adult authorization, consent, deletion, and `LOCAL_ONLY` enforcement are **not yet implemented**. Do not commit recordings, transcripts, personal information, model weights, or secrets.
