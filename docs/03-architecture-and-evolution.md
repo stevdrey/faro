@@ -29,7 +29,9 @@ Adult review (separate protected view) ├──> Spring Boot modular monolith
 
 `ExerciseDefinition(exerciseId, operands, visualModel, difficulty, expectedResult)` is backend-only; the family is derived from typed operands. `ExercisePayload.from(definition)` produces the public versioned contract with `exerciseId`, `schemaVersion`, `type`, `operands`, `visualModel`, and `difficulty`. Missing-addend payloads additionally carry an explicit `presentation` layout; the projection overload accepts the selected layout without changing the mathematical definition. The **backend retains expectedResult**, never exposing solutions in child-facing exercise payloads. See the [version 1 exercise contract and JSON fixtures](../contracts/exercises/v1/README.md).
 
-`ActionEvent(kind, value, step, occurredAt)` and `Attempt(id, exerciseId, sessionId, actionTrace, completionState)`. Replaying the same semantic trace must yield the same interpretation.
+`ActionEvent` has five immutable domain variants: `PlaceBlock`, `RemoveBlock`, `JumpLeft`, `JumpRight`, and `FinishAttempt`. Every event carries `step` and `occurredAt`; movements also carry a positive `value` magnitude. `ActionTrace` preserves received order with consecutive steps from 1 and an optional terminal finish. `ActionReplay.replay(initialValue, trace)` deterministically returns `Result(finalValue, completed)` without grading or deriving the starting value from an exercise. Timestamps do not determine order. The [version 1 action contract and shared fixtures](../contracts/actions/v1/README.md) define strict JSON binding and matching web types separately from the pure Java domain.
+
+`Attempt(id, exerciseId, sessionId, actionTrace, completionState)` remains a future concept; sessions, persistence, and attempt endpoints are not implemented by the action contract.
 
 `SpeechHypothesis(transcript, languageTag, engineId, modelId, modelVersion, latencyMs, status, segments)` is only what an engine thinks was said. Confidence scores must not be trusted without calibration.
 

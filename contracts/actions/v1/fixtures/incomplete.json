@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "initialValue": 0,
+  "events": [
+    { "kind": "placeBlock", "value": 1, "step": 1, "occurredAt": "2026-01-01T00:00:00.123Z" }
+  ]
+}

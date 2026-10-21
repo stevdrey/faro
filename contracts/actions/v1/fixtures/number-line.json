@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "initialValue": 28,
+  "events": [
+    { "kind": "jumpRight", "value": 2, "step": 1, "occurredAt": "2026-01-01T00:00:00Z" },
+    { "kind": "jumpLeft", "value": 2, "step": 2, "occurredAt": "2026-01-01T00:00:00Z" },
+    { "kind": "jumpLeft", "value": 2, "step": 3, "occurredAt": "2025-12-31T23:59:59Z" },
+    { "kind": "finishAttempt", "step": 4, "occurredAt": "2026-01-01T00:00:01Z" }
+  ]
+}
