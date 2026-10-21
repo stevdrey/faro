@@ -23,6 +23,35 @@ class SpeechContractTests {
     }
 
     @Test
+    void requestsHaveValueEqualityOverAudioContent() {
+        var first = request(new byte[] {1, 2}, 16_000, Duration.ofSeconds(1));
+        var second = request(new byte[] {1, 2}, 16_000, Duration.ofSeconds(1));
+        assertThat(first).isEqualTo(second).hasSameHashCodeAs(second);
+        assertThat(first).isNotEqualTo(request(new byte[] {1, 3}, 16_000, Duration.ofSeconds(1)));
+    }
+
+    @Test
+    void audioDurationReflectsActualSamplesNotTheDeclaredBound() {
+        assertThat(request(new byte[32_000], 16_000, Duration.ofSeconds(60)).audioDuration()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(request(new byte[2], 3, Duration.ofSeconds(1)).audioDuration()).isEqualTo(Duration.ofNanos(333_333_334));
+        assertThat(request(new byte[0], 16_000, Duration.ofSeconds(1)).audioDuration()).isZero();
+    }
+
+    @Test
+    void languageTagsAreNormalizedAndMustBeWellFormed() {
+        assertThat(new SpeechRequest(new byte[0], 16_000, "es-cr", "id", Duration.ofSeconds(1)).languageTag()).isEqualTo("es-CR");
+        assertThat(new ProviderConfig("fake", "ES-cr", Duration.ofSeconds(1)).language()).isEqualTo("es-CR");
+        assertThat(new SpeechHypothesis("", "es-cr", "fake", "synthetic", "1", 0, SpeechStatus.EMPTY).languageTag())
+                .isEqualTo("es-CR");
+        assertThat(new AsrCapabilities(Set.of(16_000), Set.of("es-cr"), Duration.ofSeconds(1), true).languageTags())
+                .containsExactly("es-CR");
+        for (var tag : new String[] {"!!", "es_CR", " es-CR"}) {
+            assertThatThrownBy(() -> new ProviderConfig("fake", tag, Duration.ofSeconds(1)))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
     void acceptsEmptyAudioAndExactDurationBoundary() {
         assertThat(request(new byte[0], 16_000, Duration.ofNanos(1)).pcm16Mono()).isEmpty();
         assertThat(request(new byte[32_000], 16_000, Duration.ofSeconds(1)).sampleRateHz()).isEqualTo(16_000);
@@ -123,6 +152,8 @@ class SpeechContractTests {
         hypothesis("", SpeechStatus.EMPTY);
         hypothesis("", SpeechStatus.UNRELIABLE);
         hypothesis("", SpeechStatus.UNAVAILABLE);
+        assertThat(hypothesis(" ", SpeechStatus.EMPTY).transcript()).isEqualTo(" ");
+        hypothesis("\n", SpeechStatus.UNAVAILABLE);
         assertThatThrownBy(() -> hypothesis(" ", SpeechStatus.TRANSCRIBED)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> hypothesis("synthetic", SpeechStatus.EMPTY)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> hypothesis("synthetic", SpeechStatus.UNAVAILABLE)).isInstanceOf(IllegalArgumentException.class);

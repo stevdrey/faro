@@ -1,0 +1,4 @@
+# Local development only: the deterministic, non-recognizing fake ASR adapter.
+faro:
+  speech:
+    provider: fake

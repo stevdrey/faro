@@ -34,9 +34,9 @@ These signatures summarize the implemented pure Java contracts in `io.github.ste
 
 ### Audio and result semantics
 
-- Requests carry transient signed PCM16 **little-endian mono** samples. Empty audio is valid. Sample rate and maximum audio duration must be positive; incomplete samples and audio exceeding the declared duration are rejected. The byte array is copied on construction and access. `maxDuration` bounds audio length; `ProviderConfig.timeout` is the separate inference deadline future adapters must enforce.
-- Capabilities contain immutable, nonempty sets of positive rates and exact language tags, maximum audio duration and a local-processing declaration. `supports(request)` requires a supported rate/language and a requested duration bound within the adapter's maximum; language aliases and fallback are not inferred. The declaration alone does **not** enforce `LOCAL_ONLY`.
-- Results preserve transcript text exactly, effective language, engine, model, revision and nonnegative latency. `TRANSCRIBED` requires nonblank text; `EMPTY` and `UNAVAILABLE` require empty text. `UNRELIABLE` can retain an uncertain transcript or have none. There are no segments or confidence fields yet.
+- Requests carry transient signed PCM16 **little-endian mono** samples. Empty audio is valid. Sample rate and maximum audio duration must be positive; incomplete samples and audio exceeding the declared duration are rejected. The byte array is copied on construction and access, and requests have value equality over the audio content. `maxDuration` is the caller's bound; `audioDuration()` is the actual sample length. `ProviderConfig.timeout` is the separate inference deadline.
+- Capabilities contain immutable, nonempty sets of positive rates and language tags, maximum audio duration and a local-processing declaration. All language tags (requests, results, capabilities, configuration) must be well-formed BCP 47 and are normalized to canonical case, so `es-cr` equals `es-CR`; ill-formed tags are rejected, and aliases or fallback are not inferred. `supports(request)` requires a supported rate/language and actual audio length within the adapter's maximum, regardless of the caller's declared bound. The declaration alone does **not** enforce `LOCAL_ONLY`.
+- Results preserve transcript text exactly, effective language, engine, model, revision and nonnegative latency. `TRANSCRIBED` requires nonblank text; `EMPTY` and `UNAVAILABLE` require blank text (whitespace-only engine output for silence is preserved, not rejected). `UNRELIABLE` can retain an uncertain transcript or have none. There are no segments or confidence fields yet.
 - Adapter operational failures throw `SpeechFailure` with `UNAVAILABLE`, `TIMEOUT`, `INCOMPATIBLE_REQUEST` or `PROVIDER_ERROR`. `UNAVAILABLE` in `SpeechStatus` is reserved for a future application-level conversion of failures; adapters use the exception channel. No assessment conversion is implemented here.
 - Request/result string representations redact sensitive content and metadata. Failure messages contain only the stable code; vendor exception causes and suppressed exceptions cannot be attached. These contracts provide no storage or logging. Future adapters must not log or persist audio/transcripts, and must normalize vendor errors without copying raw messages.
 
@@ -44,7 +44,7 @@ These signatures summarize the implemented pure Java contracts in `io.github.ste
 
 The production fake is deliberately non-recognizing: compatible empty or nonempty audio returns an `EMPTY` hypothesis with `fake` / `synthetic` / `1` provenance and zero latency. It advertises 16 kHz, `es-CR`, at most 30 seconds, and local processing. Tests can construct it with a synthetic `TRANSCRIBED`/`EMPTY`/`UNRELIABLE` hypothesis or a failure code, without clocks, network, processes or model weights. It never retains input requests.
 
-Installed adapters register an `AsrProvider` Spring bean with a unique `id()` and `create(ProviderConfig)` factory. `SpeechConfiguration` validates all registration IDs, invokes **only** the explicitly selected factory, verifies the configured language is supported and exposes one `SpeechRecognizer` bean. Unknown or absent providers, duplicate IDs, unsupported language and invalid configuration fail startup. A selected factory failure is propagated; no alternate factory is invoked. The pure port and data objects do not import Spring or vendor SDKs.
+Installed adapters register an `AsrProvider` Spring bean with a unique `id()` and `create(ProviderConfig)` factory. `SpeechConfiguration` validates all registration IDs, invokes **only** the explicitly selected factory, verifies the configured language is supported and exposes one guarded `SpeechRecognizer` bean. The guard enforces, once for every adapter, the adapter's capabilities, the configured language and the inference timeout (`TIMEOUT`, with the adapter call interrupted); unchecked adapter exceptions and null results become `PROVIDER_ERROR` without attaching the vendor exception. Unknown or absent providers, duplicate IDs, unsupported language and invalid configuration fail startup with messages naming the provider id or language (configuration values, never child data). A selected factory's `SpeechFailure` is propagated and unchecked factory exceptions are replaced by `PROVIDER_ERROR` without their message; no alternate factory is invoked. The pure port and data objects do not import Spring or vendor SDKs.
 
 There is **no production whisper.cpp adapter** in this issue. Selection of an installed `whisper-cpp` factory is exercised with a test-only recognizer, not a real runtime integration. Supporting a real adapter remains separate work.
 
@@ -59,14 +59,19 @@ There is **no production whisper.cpp adapter** in this issue. Selection of an in
 
 ## Active configuration
 
-The following defaults are active in `application.yaml` and in configuration binding. Properties can be overridden through normal Spring Boot configuration, for example `FARO_SPEECH_PROVIDER` or `--faro.speech.timeout=3s`. Provider/language must be nonblank and timeout must be positive. The fake currently supports only `es-CR`.
+`faro.speech.provider` has **no default**: startup fails until it is set, so a deployment can never silently run the non-recognizing fake. The fake is selected only by the `dev` profile (`application-dev.yaml`) and by the test-only `config/application.yaml` overlay. `language` (`es-CR`) and `timeout` (`8s`) keep binding defaults. Properties can be overridden through normal Spring Boot configuration, for example `FARO_SPEECH_PROVIDER` or `--faro.speech.timeout=3s`. Provider/language must be nonblank and timeout must be positive. Run locally with `--spring.profiles.active=dev`. The fake currently supports only `es-CR`.
 
 ```yaml
+# application.yaml (provider intentionally absent)
+faro:
+  speech:
+    language: es-CR
+    timeout: 8s
+---
+# application-dev.yaml
 faro:
   speech:
     provider: fake
-    language: es-CR
-    timeout: 8s
 ```
 
 Choosing `whisper-cpp` today fails explicitly because its adapter is not installed. No audio endpoint is exposed. This selection mechanism is **not** the FARO-040 backend network safety gate.
@@ -95,7 +100,7 @@ Provider-specific endpoints are Faro conventions, not vendor API guarantees. Swi
 ## Verification and future integration tests
 
 - Implemented: defensive audio copying, duration bounds, capability immutability, result provenance, redacted representations and safe failure codes.
-- Implemented: deterministic fake results/failures, configuration binding, test-only installed-whisper selection, unknown/unavailable provider and duplicate-registration failures without fallback.
+- Implemented: deterministic fake results/failures, the shared guard (capabilities, language, timeout, failure normalization), configuration binding, required provider selection, test-only installed-whisper selection, unknown/unavailable provider and duplicate-registration failures without fallback.
 - Future integration: real local adapter conformance, inference deadline enforcement and empty/unavailable results translated to retry/indeterminate feedback.
 - FARO-040: `LOCAL_ONLY` blocks remote execution even if a remote endpoint is configured.
 - Future assessment/shadow work: six-versus-seven misrecognition never penalizes the child; malformed shadow LLM output cannot change child-visible feedback.

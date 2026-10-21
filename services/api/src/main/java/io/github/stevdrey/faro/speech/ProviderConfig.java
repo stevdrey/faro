@@ -9,7 +9,7 @@ import java.util.Objects;
 public record ProviderConfig(String provider, String language, Duration timeout) {
     public ProviderConfig {
         Text.requireNonBlank(provider, "provider");
-        Text.requireNonBlank(language, "language");
+        language = LanguageTags.normalize(language, "language");
         Objects.requireNonNull(timeout, "timeout");
         if (timeout.isNegative() || timeout.isZero()) {
             throw new IllegalArgumentException("timeout must be positive");

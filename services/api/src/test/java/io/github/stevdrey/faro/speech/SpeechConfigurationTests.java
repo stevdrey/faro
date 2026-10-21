@@ -3,7 +3,6 @@ package io.github.stevdrey.faro.speech;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stevdrey.faro.speech.adapters.FakeSpeechRecognizer;
 import io.github.stevdrey.faro.speech.config.SpeechConfiguration;
 import java.time.Duration;
 import java.util.Set;
@@ -18,34 +17,53 @@ class SpeechConfigurationTests {
             .withUserConfiguration(SpeechConfiguration.class);
 
     @Test
-    void defaultsToFakeWithoutAnyRuntime() {
-        runner.run(context -> {
+    void unsetProviderFailsStartupInsteadOfDefaultingToFake() {
+        runner.run(context -> assertThat(context).hasFailed().getFailure()
+                .hasRootCauseInstanceOf(IllegalStateException.class)
+                .hasStackTraceContaining("faro.speech.provider must be set"));
+    }
+
+    @Test
+    void explicitFakeSelectionReturnsEmptyHypotheses() {
+        runner.withPropertyValues("faro.speech.provider=fake").run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(SpeechRecognizer.class);
-            assertThat(context.getBean(SpeechRecognizer.class)).isInstanceOf(FakeSpeechRecognizer.class);
+            var result = context.getBean(SpeechRecognizer.class).transcribe(request("es-CR"));
+            assertThat(result.status()).isEqualTo(SpeechStatus.EMPTY);
+            assertThat(result.engineId()).isEqualTo("fake");
         });
     }
 
     @Test
     void configurationSelectsInstalledWhisperFactoryAndPassesLanguageAndTimeout() {
         var received = new AtomicReference<ProviderConfig>();
-        SpeechRecognizer whisper = testWhisper();
-        runner.withBean("testWhisperProvider", AsrProvider.class, () -> provider("whisper-cpp", received, whisper))
+        runner.withBean("testWhisperProvider", AsrProvider.class, () -> provider("whisper-cpp", config -> {
+                    received.set(config);
+                    return testWhisper();
+                }))
                 .withPropertyValues("faro.speech.provider=whisper-cpp", "faro.speech.language=es-CR", "faro.speech.timeout=3s")
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(SpeechRecognizer.class);
-                    assertThat(context.getBean(SpeechRecognizer.class)).isSameAs(whisper);
+                    var result = context.getBean(SpeechRecognizer.class).transcribe(request("es-CR"));
+                    assertThat(result.engineId()).isEqualTo("whisper-cpp");
+                    assertThat(result.transcript()).isEqualTo("siete");
                     assertThat(received.get()).isEqualTo(new ProviderConfig("whisper-cpp", "es-CR", Duration.ofSeconds(3)));
                 });
     }
 
     @Test
+    void languageTagsAreMatchedCaseInsensitively() {
+        runner.withPropertyValues("faro.speech.provider=fake", "faro.speech.language=es-cr").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(SpeechRecognizer.class).transcribe(request("ES-cr")).status())
+                    .isEqualTo(SpeechStatus.EMPTY);
+        });
+    }
+
+    @Test
     void unusedFactoryIsNotCreated() {
-        runner.withBean("testWhisperProvider", AsrProvider.class, () -> new AsrProvider() {
-            public String id() { return "whisper-cpp"; }
-            public SpeechRecognizer create(ProviderConfig config) {
-                throw new AssertionError("unselected provider must not be created");
-            }
-        }).withPropertyValues("faro.speech.provider=fake").run(context -> assertThat(context).hasNotFailed());
+        runner.withBean("testWhisperProvider", AsrProvider.class, () -> provider("whisper-cpp", config -> {
+            throw new AssertionError("unselected provider must not be created");
+        })).withPropertyValues("faro.speech.provider=fake").run(context -> assertThat(context).hasNotFailed());
     }
 
     @ParameterizedTest
@@ -54,46 +72,100 @@ class SpeechConfigurationTests {
         runner.withPropertyValues("faro.speech.provider=" + id).run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(SpeechFailure.class)
-                    .hasStackTraceContaining("Speech recognition failed: UNAVAILABLE");
+                    .hasStackTraceContaining("Speech recognition failed: UNAVAILABLE")
+                    .hasStackTraceContaining("ASR provider '" + id + "' is not installed; registered: [fake]");
         });
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"faro.speech.provider=", "faro.speech.language=", "faro.speech.language=en-US",
-            "faro.speech.timeout=0s", "faro.speech.timeout=-1s", "faro.speech.timeout=invalid"})
-    void invalidConfigurationFailsStartup(String property) {
-        runner.withPropertyValues(property).run(context -> assertThat(context).hasFailed());
+    @ValueSource(strings = {"faro.speech.provider=", "faro.speech.provider= "})
+    void blankProviderFailsStartup(String property) {
+        runner.withPropertyValues(property).run(context -> assertThat(context).hasFailed().getFailure()
+                .hasRootCauseInstanceOf(IllegalStateException.class)
+                .hasStackTraceContaining("faro.speech.provider must be set"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"faro.speech.language=", "faro.speech.language=!!"})
+    void invalidLanguageFailsStartup(String property) {
+        runner.withPropertyValues("faro.speech.provider=fake", property).run(context -> assertThat(context).hasFailed()
+                .getFailure().hasRootCauseInstanceOf(IllegalArgumentException.class).hasStackTraceContaining("language"));
+    }
+
+    @Test
+    void unsupportedLanguageFailsStartupNamingIt() {
+        runner.withPropertyValues("faro.speech.provider=fake", "faro.speech.language=en-US").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(SpeechFailure.class)
+                    .hasStackTraceContaining("Speech recognition failed: INCOMPATIBLE_REQUEST")
+                    .hasStackTraceContaining("Configured language 'en-US' is not supported by ASR provider 'fake'");
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0s", "-1s"})
+    void nonPositiveTimeoutFailsStartup(String timeout) {
+        runner.withPropertyValues("faro.speech.provider=fake", "faro.speech.timeout=" + timeout).run(context ->
+                assertThat(context).hasFailed().getFailure().hasRootCauseInstanceOf(IllegalArgumentException.class)
+                        .hasRootCauseMessage("timeout must be positive"));
+    }
+
+    @Test
+    void malformedTimeoutFailsBinding() {
+        runner.withPropertyValues("faro.speech.provider=fake", "faro.speech.timeout=invalid").run(context ->
+                assertThat(context).hasFailed().getFailure().hasStackTraceContaining("faro.speech.timeout"));
     }
 
     @Test
     void duplicateRegistrationFailsEvenWhenNotSelected() {
-        runner.withBean("duplicateFake", AsrProvider.class,
-                        () -> provider("fake", new AtomicReference<>(), new FakeSpeechRecognizer()))
+        runner.withBean("duplicateFake", AsrProvider.class, () -> provider("fake", config -> testWhisper()))
+                .withPropertyValues("faro.speech.provider=whisper-cpp")
                 .run(context -> assertThat(context).hasFailed().getFailure()
-                        .hasRootCauseMessage("Duplicate ASR provider registration"));
+                        .hasRootCauseMessage("Duplicate ASR provider registration: 'fake'"));
     }
 
     @Test
     void unavailableInstalledFactoryDoesNotFallBack() {
-        runner.withBean("testWhisperProvider", AsrProvider.class, () -> new AsrProvider() {
-            public String id() { return "whisper-cpp"; }
-            public SpeechRecognizer create(ProviderConfig config) throws SpeechFailure {
-                throw new SpeechFailure(SpeechFailure.Code.UNAVAILABLE);
-            }
-        }).withPropertyValues("faro.speech.provider=whisper-cpp").run(context -> {
+        runner.withBean("testWhisperProvider", AsrProvider.class, () -> provider("whisper-cpp", config -> {
+            throw new SpeechFailure(SpeechFailure.Code.UNAVAILABLE);
+        })).withPropertyValues("faro.speech.provider=whisper-cpp").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(SpeechFailure.class);
         });
     }
 
-    private static AsrProvider provider(String id, AtomicReference<ProviderConfig> received, SpeechRecognizer recognizer) {
+    @Test
+    void vendorRuntimeFailureIsNormalizedWithoutLeakingItsMessage() {
+        runner.withBean("testWhisperProvider", AsrProvider.class, () -> provider("whisper-cpp", config -> {
+            throw new IllegalStateException("synthetic-private-detail");
+        })).withPropertyValues("faro.speech.provider=whisper-cpp").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(SpeechFailure.class)
+                    .hasStackTraceContaining("Speech recognition failed: PROVIDER_ERROR")
+                    .satisfies(failure -> assertThat(stackTrace(failure)).doesNotContain("synthetic-private-detail"));
+        });
+    }
+
+    @FunctionalInterface
+    private interface Factory {
+        SpeechRecognizer create(ProviderConfig config) throws SpeechFailure;
+    }
+
+    private static AsrProvider provider(String id, Factory factory) {
         return new AsrProvider() {
             public String id() { return id; }
-            public SpeechRecognizer create(ProviderConfig config) {
-                received.set(config);
-                return recognizer;
-            }
+            public SpeechRecognizer create(ProviderConfig config) throws SpeechFailure { return factory.create(config); }
         };
+    }
+
+    private static SpeechRequest request(String language) {
+        return new SpeechRequest(new byte[] {1, 2}, 16_000, language, "synthetic-correlation", Duration.ofSeconds(1));
+    }
+
+    private static String stackTrace(Throwable failure) {
+        var out = new java.io.StringWriter();
+        failure.printStackTrace(new java.io.PrintWriter(out));
+        return out.toString();
     }
 
     /** Test-only installed adapter; never a production whisper implementation or external process. */

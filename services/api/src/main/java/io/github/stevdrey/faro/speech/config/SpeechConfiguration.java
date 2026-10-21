@@ -3,13 +3,11 @@ package io.github.stevdrey.faro.speech.config;
 
 import io.github.stevdrey.faro.common.Text;
 import io.github.stevdrey.faro.speech.AsrProvider;
-import io.github.stevdrey.faro.speech.ProviderConfig;
 import io.github.stevdrey.faro.speech.SpeechFailure;
 import io.github.stevdrey.faro.speech.SpeechRecognizer;
-import io.github.stevdrey.faro.speech.adapters.FakeSpeechRecognizer;
-import java.util.HashMap;
+import io.github.stevdrey.faro.speech.adapters.FakeAsrProvider;
 import java.util.List;
-import java.util.Objects;
+import java.util.TreeMap;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,33 +17,44 @@ import org.springframework.context.annotation.Configuration;
 public class SpeechConfiguration {
     @Bean
     AsrProvider fakeAsrProvider() {
-        return new AsrProvider() {
-            @Override
-            public String id() { return "fake"; }
-
-            @Override
-            public SpeechRecognizer create(ProviderConfig config) { return new FakeSpeechRecognizer(); }
-        };
+        return new FakeAsrProvider();
     }
 
+    /** Provider ids and language tags are configuration, not child data, so failures may name them. */
     @Bean
-    SpeechRecognizer speechRecognizer(SpeechProperties properties, List<AsrProvider> providers) throws SpeechFailure {
+    SpeechRecognizer speechRecognizer(SpeechProperties properties, List<AsrProvider> providers) {
         var config = properties.toConfig();
-        var registry = new HashMap<String, AsrProvider>();
+        var registry = new TreeMap<String, AsrProvider>();
         for (var provider : providers) {
             var id = Text.requireNonBlank(provider.id(), "provider id");
             if (registry.putIfAbsent(id, provider) != null) {
-                throw new IllegalStateException("Duplicate ASR provider registration");
+                throw new IllegalStateException("Duplicate ASR provider registration: '" + id + "'");
             }
         }
         var selected = registry.get(config.provider());
         if (selected == null) {
-            throw new SpeechFailure(SpeechFailure.Code.UNAVAILABLE);
+            throw new IllegalStateException("ASR provider '" + config.provider() + "' is not installed; registered: "
+                    + registry.keySet(), new SpeechFailure(SpeechFailure.Code.UNAVAILABLE));
         }
-        var recognizer = Objects.requireNonNull(selected.create(config), "recognizer");
+        SpeechRecognizer recognizer;
+        try {
+            recognizer = selected.create(config);
+        } catch (SpeechFailure failure) {
+            throw new IllegalStateException("ASR provider '" + config.provider() + "' is unavailable", failure);
+        } catch (RuntimeException vendorFailure) {
+            // Deliberately dropped: vendor messages may carry paths or other sensitive details.
+            throw new IllegalStateException("ASR provider '" + config.provider() + "' failed to start",
+                    new SpeechFailure(SpeechFailure.Code.PROVIDER_ERROR));
+        }
+        if (recognizer == null) {
+            throw new IllegalStateException("ASR provider '" + config.provider() + "' returned no recognizer",
+                    new SpeechFailure(SpeechFailure.Code.PROVIDER_ERROR));
+        }
         if (!recognizer.capabilities().languageTags().contains(config.language())) {
-            throw new SpeechFailure(SpeechFailure.Code.INCOMPATIBLE_REQUEST);
+            throw new IllegalStateException("Configured language '" + config.language()
+                    + "' is not supported by ASR provider '" + config.provider() + "'",
+                    new SpeechFailure(SpeechFailure.Code.INCOMPATIBLE_REQUEST));
         }
-        return recognizer;
+        return new GuardedSpeechRecognizer(recognizer, config);
     }
 }

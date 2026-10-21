@@ -1,0 +1,5 @@
+# Test-only overlay. Spring Boot reads classpath:/config/application.yaml in addition to the main
+# application.yaml, so full-context tests select the fake without making it a production default.
+faro:
+  speech:
+    provider: fake

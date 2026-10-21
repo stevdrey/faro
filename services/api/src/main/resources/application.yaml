@@ -11,8 +11,8 @@ management:
       show-details: never
 
 # No audio endpoint or real ASR transport. FARO-040 must enforce LOCAL_ONLY before integration.
+# faro.speech.provider has no default; startup fails until a deployment or the dev profile selects one.
 faro:
   speech:
-    provider: fake
     language: es-CR
     timeout: 8s

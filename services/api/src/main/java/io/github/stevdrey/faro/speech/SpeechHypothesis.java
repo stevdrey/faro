@@ -9,7 +9,7 @@ public record SpeechHypothesis(String transcript, String languageTag, String eng
                                String modelId, String modelVersion, long latencyMs, SpeechStatus status) {
     public SpeechHypothesis {
         Objects.requireNonNull(transcript, "transcript");
-        Text.requireNonBlank(languageTag, "languageTag");
+        languageTag = LanguageTags.normalize(languageTag, "languageTag");
         Text.requireNonBlank(engineId, "engineId");
         Text.requireNonBlank(modelId, "modelId");
         Text.requireNonBlank(modelVersion, "modelVersion");
@@ -20,8 +20,8 @@ public record SpeechHypothesis(String transcript, String languageTag, String eng
         if (status == SpeechStatus.TRANSCRIBED && transcript.isBlank()) {
             throw new IllegalArgumentException("TRANSCRIBED requires nonblank transcript");
         }
-        if ((status == SpeechStatus.EMPTY || status == SpeechStatus.UNAVAILABLE) && !transcript.isEmpty()) {
-            throw new IllegalArgumentException("EMPTY and UNAVAILABLE require empty transcript");
+        if ((status == SpeechStatus.EMPTY || status == SpeechStatus.UNAVAILABLE) && !transcript.isBlank()) {
+            throw new IllegalArgumentException("EMPTY and UNAVAILABLE require blank transcript");
         }
     }
 

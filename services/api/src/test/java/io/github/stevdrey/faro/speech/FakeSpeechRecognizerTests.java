@@ -48,10 +48,16 @@ class FakeSpeechRecognizerTests {
         for (var request : new SpeechRequest[] {
                 request(new byte[0], 8_000, "es-CR", Duration.ofSeconds(1)),
                 request(new byte[0], 16_000, "en-US", Duration.ofSeconds(1)),
-                request(new byte[0], 16_000, "es-CR", Duration.ofSeconds(31))}) {
+                request(new byte[16_000 * 2 * 31], 16_000, "es-CR", Duration.ofSeconds(31))}) {
             assertThatThrownBy(() -> recognizer.transcribe(request)).isInstanceOfSatisfying(SpeechFailure.class,
                     failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.INCOMPATIBLE_REQUEST));
         }
+    }
+
+    @Test
+    void acceptsShortAudioEvenWhenTheDeclaredBoundExceedsTheAdapterMaximum() throws SpeechFailure {
+        var request = request(new byte[16_000 * 2], 16_000, "es-cr", Duration.ofSeconds(60));
+        assertThat(new FakeSpeechRecognizer().transcribe(request).status()).isEqualTo(SpeechStatus.EMPTY);
     }
 
     @Test
