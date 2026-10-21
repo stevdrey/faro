@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "actionMathState": "SIN_TERMINAR",
+  "strategyEvidenceState": "NO_EVALUABLE",
+  "nextAction": "CONTINUAR",
+  "ruleIds": [],
+  "assessmentVersion": "synthetic-v1"
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "actionMathState": "CORRECTA",
+  "strategyEvidenceState": "COHERENTE",
+  "nextAction": "CONTINUAR",
+  "ruleIds": [
+    "synthetic.coherent.v1"
+  ],
+  "assessmentVersion": "synthetic-v1"
+}

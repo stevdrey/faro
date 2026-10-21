@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "actionMathState": "INCORRECTA",
+  "strategyEvidenceState": "ERROR_ARITMETICO_IDENTIFICABLE",
+  "nextAction": "PISTA",
+  "ruleIds": [
+    "synthetic.arithmetic-error.v1"
+  ],
+  "assessmentVersion": "synthetic-v1"
+}

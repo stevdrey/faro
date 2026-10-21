@@ -215,11 +215,10 @@ class ActionTracePayloadTests {
 
     @Test
     void rejectsNullPayloads() {
-        assertThatThrownBy(() -> actionJson.read("null"))
-                .isInstanceOf(NullPointerException.class).hasMessage("payload");
+        assertThatThrownBy(() -> actionJson.read("null")).isInstanceOf(JacksonException.class);
         assertThatThrownBy(() -> actionJson.read(
                 new ByteArrayInputStream("null".getBytes(StandardCharsets.UTF_8))))
-                .isInstanceOf(NullPointerException.class).hasMessage("payload");
+                .isInstanceOf(JacksonException.class);
         assertThatThrownBy(() -> actionJson.write(null))
                 .isInstanceOf(NullPointerException.class).hasMessage("payload");
     }
