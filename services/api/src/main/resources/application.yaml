@@ -10,5 +10,9 @@ management:
     health:
       show-details: never
 
-# This scaffold does not expose an audio endpoint. FARO-031/040 must
-# implement a fail-closed LOCAL_ONLY policy before speech integration.
+# No audio endpoint or real ASR transport. FARO-040 must enforce LOCAL_ONLY before integration.
+faro:
+  speech:
+    provider: fake
+    language: es-CR
+    timeout: 8s
