@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "actionMathState": "CORRECTA",
+  "strategyEvidenceState": "CONFLICTO_ASR",
+  "nextAction": "PEDIR_ACLARACION",
+  "ruleIds": [
+    "synthetic.asr-conflict.v1"
+  ],
+  "assessmentVersion": "synthetic-v1"
+}

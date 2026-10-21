@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "actionMathState": "CORRECTA",
+  "strategyEvidenceState": "INSUFICIENTE",
+  "nextAction": "PEDIR_ACLARACION",
+  "ruleIds": [
+    "synthetic.insufficient.v1"
+  ],
+  "assessmentVersion": "synthetic-v1"
+}

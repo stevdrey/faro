@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "actionMathState": "CORRECTA",
+  "strategyEvidenceState": "NO_EVALUABLE",
+  "nextAction": "REPETIR_AUDIO",
+  "ruleIds": [
+    "synthetic.not-evaluable.v1"
+  ],
+  "assessmentVersion": "synthetic-v1"
+}

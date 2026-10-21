@@ -12,6 +12,10 @@
 
 The canonical enumerations above retain their original Spanish identifiers for cross-document compatibility; English code-facing enum names can be adopted through a separately versioned contract decision. Adult output must **not** say the child 'does not understand'.
 
+FARO-004 implements these values in the provider-independent Java `AssessmentResult` and the [version 1 assessment contract](../contracts/assessments/v1/README.md), with strict JSON binding, readonly TypeScript types, and six shared synthetic fixtures. All three axes remain independent; the contract preserves supplied states rather than inferring them. Required `ruleIds` (possibly empty) and nonblank `assessmentVersion` provide minimal provenance. The rule catalog and emission belong to FARO-021; structured evidence references remain future work.
+
+The processing pipeline and safety policies below describe future behavior. This contract does not yet implement an evaluator, feedback selection, speech interpretation, or retries.
+
 ## Inputs and evidence processing
 
 `assess(exercise, actionTrace, speechHypothesis?, clarifications[]) -> AssessmentResult` includes versioned `ruleIds` and evidence references. The deterministic math engine checks outcomes and steps; an `ActionInterpreter` interprets semantic moves; a bounded `ExplanationInterpreter` extracts only supported phrases and numbers; an `EvidenceAggregator` resolves uncertainty; a `FeedbackPolicy` chooses a bounded response.

@@ -36,4 +36,8 @@ tasks.processTestResources {
         include("**/*.json")
         into("actions")
     }
+    from("../../contracts/assessments") {
+        include("**/*.json")
+        into("assessments")
+    }
 }

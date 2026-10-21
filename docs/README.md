@@ -9,6 +9,7 @@ All project documentation and GitHub work items are written in English. The user
 | [Architecture and evolution](03-architecture-and-evolution.md) | Modules, API ideas, boundary rules, and delivery sequence |
 | [Exercise contract v1](../contracts/exercises/v1/README.md) | Public exercise types, backend solution boundary, JSON fixtures, and serialization tests |
 | [Assessment and evidence](04-assessment-and-evidence.md) | Types, rules, required regression scenarios |
+| [Assessment result contract v1](../contracts/assessments/v1/README.md) | Independent math/evidence/next-step states, minimal provenance, strict JSON binding, and shared fixtures |
 | [Provider-independent models](05-provider-independence.md) | ASR ports, configuration, local-only policy, optional future LLM |
 | [ASR research](research/asr-alternatives-es.md) | Baseline, candidates, benchmark methodology, license cautions |
 | [Licensing and commercial evolution](06-license-and-commercial-path.md) | AGPL-3.0-or-later for Faro code, external dependencies, SaaS proposals |

@@ -35,7 +35,7 @@ Adult review (separate protected view) ├──> Spring Boot modular monolith
 
 `SpeechHypothesis(transcript, languageTag, engineId, modelId, modelVersion, latencyMs, status, segments)` is only what an engine thinks was said. Confidence scores must not be trusted without calibration.
 
-`AssessmentResult(actionMathState, strategyEvidenceState, nextAction, ruleIds, assessmentVersion)` separates observable mathematical correctness from strategic explanation evidence.
+`AssessmentResult(actionMathState, strategyEvidenceState, nextAction, ruleIds, assessmentVersion)` is an immutable, provider-independent result with three independent state axes and minimal provenance. `assessment.api.AssessmentResultPayload` adds `schemaVersion: 1`; its strict codec and matching readonly web types are documented in the [version 1 assessment contract and shared fixtures](../contracts/assessments/v1/README.md). Empty rule lists are valid; the rule catalog, evidence references, evaluator, and feedback policy remain future work. Constructing or decoding a result does not choose states or enforce cross-axis policy.
 
 ## Request flow (planned)
 
