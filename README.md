@@ -1,6 +1,6 @@
 # Project Faro
 
-**Status: local missing-addend interaction demo — not yet a complete learning application.**
+**Status: local missing-addend and sequence interaction demos — not yet a complete learning application.**
 
 Project Faro is an experimental, privacy-first mathematics learning experience for a seven-year-old child, piloted with an accompanying adult. The first version focuses on manipulable math exercises and short spoken explanations in **Costa Rican Spanish**. This is research-oriented software, **not** a diagnostic tool.
 
@@ -8,7 +8,7 @@ Project Faro is an experimental, privacy-first mathematics learning experience f
 
 Can a child solve `18 = 12 + □`, explain how, and receive fair feedback even when speech recognition mishears a number? The MVP must treat an automatic transcript as a hypothesis, never a fact, and must never interpret insufficient evidence as lack of understanding.
 
-The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **Only the local missing-addend block screen and foundational contracts are implemented; the complete learning flow remains future work.**
+The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **Only the local missing-addend block screen, sequence number line, and foundational contracts are implemented; the complete learning flow remains future work.**
 
 ## Architecture
 
@@ -89,6 +89,29 @@ libraries (the latter may require administrator permissions). CI performs this
 step explicitly too; no dependency install hook downloads a browser. Test data is
 synthetic, and screenshots, video, and traces are disabled by default. Generated
 reports/results are ignored. See [FARO-005 verification](docs/verification/missing-addend-screen.md).
+
+## Sequence number-line demo (FARO-006 / issue #23)
+
+Select **Secuencias** above the activity to open `30, 28, □` (later visits
+reopen the last chosen example), or select the ascending example `10, 12, □`. Each attempt starts at the last visible term.
+Choose a jump size of **1, 2, 5, or 10** (initially 1), then use the left/right
+buttons with mouse, touch, Enter, or Space; holding a key records one jump. Size
+selection alone records no move.
+Every jump remains drawn and listed with its starting position, destination,
+direction, and magnitude, including corrections and repeated paths. The number
+line widens to include explored positions, including negative values, labeling
+ticks on 1/2/5×10ⁿ steps (every unit at ordinary ranges). Arcs share a height
+lane unless they overlap. Whenever the line overflows, its labeled region becomes
+focusable and scrolls horizontally by touch or keyboard.
+
+**Listo** completes at any position with the same neutral **Terminaste** message.
+**Empezar de nuevo** clears both unfinished and completed attempts. Switching
+examples or activities, or reloading, also discards the current attempt. The
+existing v1 semantic trace records `jumpLeft`/`jumpRight`, their positive `value`,
+consecutive steps and UTC timestamps, plus one optional terminal `finishAttempt`.
+Only signed 32-bit arithmetic limits block movements. No answer is calculated or
+graded, and no network, storage, telemetry, or audio integration is added.
+See [FARO-006 verification](docs/verification/sequence-number-line.md).
 
 ## Supply-chain safety
 

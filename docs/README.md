@@ -14,6 +14,7 @@ All project documentation and GitHub work items are written in English. The user
 | [ASR research](research/asr-alternatives-es.md) | Baseline, candidates, benchmark methodology, license cautions |
 | [Licensing and commercial evolution](06-license-and-commercial-path.md) | AGPL-3.0-or-later for Faro code, external dependencies, SaaS proposals |
 | [Pilot, privacy, and accessibility](07-pilot-privacy-and-accessibility.md) | Consent, research metrics, safety, and deletion |
+| [Sequence number-line verification](verification/sequence-number-line.md) | FARO-006 behavior, trace boundaries, and reproducible checks |
 | [Supply-chain security](08-supply-chain-security.md) | npm install-script lockdown, Gradle verification, secure CI and reviews |
 | [ADR-0001](adr/0001-modular-monolith.md) | Modular monolith and separately managed local ASR |
 | [ADR-0002](adr/0002-provider-independent-models.md) | Own AI capability ports and fail-closed local policy |
