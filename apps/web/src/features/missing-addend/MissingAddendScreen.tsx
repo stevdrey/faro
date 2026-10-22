@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useReducer, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { MissingAddendExercise } from '../../contracts/exercise.ts'
 import { attemptReducer, emptyAttempt, MAX_BLOCKS } from './attempt.ts'
+
+/** Multi-clicks this soon after finishing/resetting are treated as accidental repeats. */
+const TRANSITION_GUARD_MS = 400
 
 type MoveKind = 'placeBlock' | 'removeBlock'
 interface Drag {
@@ -11,6 +14,10 @@ interface Drag {
   pointerId: number
   startX: number
   startY: number
+}
+/** Rendered drag state; later pointer positions move the preview without re-rendering. */
+interface DragStart {
+  kind: MoveKind
   x: number
   y: number
 }
@@ -22,13 +29,14 @@ interface Props {
 
 export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(attemptReducer, undefined, emptyAttempt)
-  const [drag, setDrag] = useState<Drag | null>(null)
+  const [drag, setDrag] = useState<DragStart | null>(null)
   const activeDrag = useRef<Drag | null>(null)
+  const preview = useRef<HTMLSpanElement>(null)
   const answerArea = useRef<HTMLDivElement>(null)
   const reserveArea = useRef<HTMLDivElement>(null)
-  const doneButton = useRef<HTMLButtonElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
   const notifiedTrace = useRef<ActionTracePayload | null>(null)
+  const lastTransitionAt = useRef(Number.NEGATIVE_INFINITY)
 
   useEffect(() => {
     if (!state.completed) notifiedTrace.current = null
@@ -41,10 +49,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
 
   useEffect(() => {
     function cancelOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        activeDrag.current = null
-        setDrag(null)
-      }
+      if (event.key === 'Escape') cancelDrag()
     }
     document.addEventListener('keydown', cancelOnEscape)
     return () => document.removeEventListener('keydown', cancelOnEscape)
@@ -65,21 +70,14 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
     if ((kind === 'placeBlock' && state.count === MAX_BLOCKS) || (kind === 'removeBlock' && state.count === 0)) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
-    const next = {
-      kind, pointerId: event.pointerId,
-      startX: event.clientX, startY: event.clientY,
-      x: event.clientX, y: event.clientY,
-    }
-    activeDrag.current = next
-    setDrag(next)
+    activeDrag.current = { kind, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY }
+    setDrag({ kind, x: event.clientX, y: event.clientY })
   }
 
   function updateDrag(event: ReactPointerEvent<HTMLElement>) {
-    const current = activeDrag.current
-    if (!current || current.pointerId !== event.pointerId) return
-    const next = { ...current, x: event.clientX, y: event.clientY }
-    activeDrag.current = next
-    setDrag(next)
+    if (activeDrag.current?.pointerId !== event.pointerId || !preview.current) return
+    preview.current.style.left = `${event.clientX}px`
+    preview.current.style.top = `${event.clientY}px`
   }
 
   function drop(event: ReactPointerEvent<HTMLElement>) {
@@ -88,8 +86,8 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
     const target = current.kind === 'placeBlock' ? answerArea.current : reserveArea.current
     const moved = Math.hypot(event.clientX - current.startX, event.clientY - current.startY) >= 8
     const landedInside = target?.contains(document.elementFromPoint(event.clientX, event.clientY))
-    cancelDrag()
     if (moved && landedInside) move(current.kind)
+    else cancelDrag()
   }
 
   function cancelPointer(event: ReactPointerEvent<HTMLElement>) {
@@ -97,10 +95,17 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
   }
 
   function preventRepeatedActivation(event: ReactKeyboardEvent<HTMLButtonElement>) {
-    // Focus moves between the finish/reset buttons; a held key is still one action.
+    // A held key is still one action, even after the finish/reset transition.
     if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault()
     }
+  }
+
+  /** Rejects the extra clicks of a multi-click that straddles a finish/reset transition. */
+  function acceptTransition(event: ReactMouseEvent<HTMLButtonElement>) {
+    if (event.detail > 1 && event.timeStamp - lastTransitionAt.current < TRANSITION_GUARD_MS) return false
+    lastTransitionAt.current = event.timeStamp
+    return true
   }
 
   const known = <span key="known">{exercise.operands.knownAddend}</span>
@@ -113,6 +118,9 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
     : exercise.presentation === 'MISSING_PLUS_KNOWN_EQUALS_TOTAL'
       ? [missing, plus, known, equals, total]
       : [known, plus, missing, equals, total]
+  // aria-disabled keeps a focused control focusable when it reaches a limit.
+  const removeDisabled = state.completed || state.count === 0
+  const addDisabled = state.completed || state.count === MAX_BLOCKS
 
   return (
     <section className="activity" aria-labelledby="page-title" data-completed={state.completed}>
@@ -125,7 +133,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
         <h1 id="page-title">¿Cuántos bloques faltan?</h1>
         <p>Mové los bloques. Podés cambiar de idea.</p>
       </div>
-      <div className="equation" aria-label="Completá la igualdad" data-testid="equation">{equation}</div>
+      <div className="equation" role="group" aria-label="Completá la igualdad" data-testid="equation">{equation}</div>
       <div className="workspace">
         <section className="known-panel" aria-labelledby="known-title">
           <h2 id="known-title">Ya tenemos <span>{exercise.operands.knownAddend}</span></h2>
@@ -137,7 +145,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
         <span className="workspace-plus" aria-hidden="true">+</span>
         <section className="answer-panel" aria-labelledby="answer-title">
           <h2 id="answer-title">Vos agregás <span aria-live="polite" aria-atomic="true">{state.count}</span></h2>
-          <div ref={answerArea} className={`answer-area drop-area${drag?.kind === 'placeBlock' ? ' drop-ready' : ''}`} data-testid="answer-area" aria-label="Área de respuesta">
+          <div ref={answerArea} className={`answer-area drop-area${drag?.kind === 'placeBlock' ? ' drop-ready' : ''}`} data-testid="answer-area" role="group" aria-label="Área de respuesta">
             {Array.from({ length: state.count }, (_, index) => (
               <span key={index} className="block movable-block" role="img" aria-label="Bloque para devolver" data-testid="answer-block"
                 onPointerDown={event => startDrag(event, 'removeBlock')} onPointerMove={updateDrag} onPointerUp={drop}
@@ -146,15 +154,15 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
             {state.count === 0 && <span className="empty-hint" aria-hidden="true">□<small>Traé bloques aquí</small></span>}
           </div>
           <div className="quantity-controls" role="group" aria-label="Cambiar cantidad de bloques">
-            <button type="button" className="quantity-button" aria-label="Quitar un bloque" disabled={state.completed || state.count === 0} onClick={() => move('removeBlock')}>−</button>
+            <button type="button" className="quantity-button" aria-label="Quitar un bloque" aria-disabled={removeDisabled} onClick={() => { if (!removeDisabled) move('removeBlock') }}>−</button>
             <span className="control-hint">Quitá o agregá</span>
-            <button type="button" className="quantity-button" aria-label="Agregar un bloque" disabled={state.completed || state.count === MAX_BLOCKS} onClick={() => move('placeBlock')}>+</button>
+            <button type="button" className="quantity-button" aria-label="Agregar un bloque" aria-disabled={addDisabled} onClick={() => { if (!addDisabled) move('placeBlock') }}>+</button>
           </div>
         </section>
       </div>
       <section className="reserve-panel" aria-labelledby="reserve-title">
         <div className="reserve-heading"><h2 id="reserve-title">Tus bloques</h2><p><span aria-hidden="true">↔</span> Llevá y traé</p></div>
-        <div ref={reserveArea} className={`reserve-area drop-area${drag?.kind === 'removeBlock' ? ' drop-ready' : ''}`} data-testid="reserve-area" aria-label="Reserva de bloques">
+        <div ref={reserveArea} className={`reserve-area drop-area${drag?.kind === 'removeBlock' ? ' drop-ready' : ''}`} data-testid="reserve-area" role="group" aria-label="Reserva de bloques">
           {Array.from({ length: MAX_BLOCKS - state.count }, (_, index) => (
             <span key={index} className="block movable-block" role="img" aria-label="Bloque para agregar" data-testid="reserve-block"
               onPointerDown={event => startDrag(event, 'placeBlock')} onPointerMove={updateDrag} onPointerUp={drop}
@@ -164,20 +172,20 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
       </section>
       <footer className="activity-footer">
         <p className="completion-message" role="status">{state.completed ? 'Terminaste' : 'A tu ritmo.'}</p>
+        {/* Both branches reuse one <button> node, so focus stays on it across finish/reset. */}
         {state.completed
           ? <button type="button" className="finish-button" ref={resetButton} onKeyDown={preventRepeatedActivation} onClick={event => {
-            // Ignore the second click of a double-click on the previous Listo button.
-            if (event.detail > 1) return
+            if (!acceptTransition(event)) return
             cancelDrag()
             dispatch({ kind: 'reset' })
             onReset()
-            // The finish button returns on the next render.
-            requestAnimationFrame(() => doneButton.current?.focus())
           }}>Intentar de nuevo <span aria-hidden="true">↻</span></button>
-          : <button type="button" className="finish-button" ref={doneButton} onKeyDown={preventRepeatedActivation} onClick={() => move('finishAttempt')}>Listo <span aria-hidden="true">→</span></button>}
+          : <button type="button" className="finish-button" onKeyDown={preventRepeatedActivation} onClick={event => {
+            if (acceptTransition(event)) move('finishAttempt')
+          }}>Listo <span aria-hidden="true">→</span></button>}
       </footer>
       <p className="privacy-note">Demo local · No graba audio. Los movimientos se borran al reiniciar o cerrar.</p>
-      {drag && <span className="block drag-preview" aria-hidden="true" style={{ left: drag.x, top: drag.y }} />}
+      {drag && <span ref={preview} className="block drag-preview" aria-hidden="true" style={{ left: drag.x, top: drag.y }} />}
     </section>
   )
 }

@@ -4,8 +4,8 @@
 body { margin: 0; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { font: inherit; cursor: pointer; }
-button:disabled { cursor: default; opacity: .42; }
-button:not(:disabled):hover { filter: brightness(.94); }
+button:disabled, button[aria-disabled="true"] { cursor: default; opacity: .42; }
+button:not(:disabled, [aria-disabled="true"]):hover { filter: brightness(.94); }
 :focus-visible { outline: 3px solid #126b96; outline-offset: 5px; }
 .activity { max-width: 900px; margin: 0 auto; padding: 24px 32px; }
 .activity-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid #d9ded3; }
