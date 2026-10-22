@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useReducer, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { MissingAddendExercise } from '../../contracts/exercise.ts'
+import { preventRepeatedActivation, useCompletionNotice } from '../shared/completion.ts'
 import { attemptReducer, emptyAttempt, MAX_BLOCKS } from './attempt.ts'
 
 /** Multi-clicks this soon after finishing/resetting are treated as accidental repeats. */
@@ -35,17 +36,9 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
   const answerArea = useRef<HTMLDivElement>(null)
   const reserveArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
-  const notifiedTrace = useRef<ActionTracePayload | null>(null)
   const lastTransitionAt = useRef(Number.NEGATIVE_INFINITY)
 
-  useEffect(() => {
-    if (!state.completed) notifiedTrace.current = null
-    if (state.completed && notifiedTrace.current !== state.trace) {
-      notifiedTrace.current = state.trace
-      onComplete(state.trace)
-      resetButton.current?.focus()
-    }
-  }, [state.completed, state.trace, onComplete])
+  useCompletionNotice(state.completed, state.trace, onComplete, resetButton)
 
   useEffect(() => {
     function cancelOnEscape(event: KeyboardEvent) {
@@ -92,13 +85,6 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
 
   function cancelPointer(event: ReactPointerEvent<HTMLElement>) {
     if (activeDrag.current?.pointerId === event.pointerId) cancelDrag()
-  }
-
-  function preventRepeatedActivation(event: ReactKeyboardEvent<HTMLButtonElement>) {
-    // A held key is still one action, even after the finish/reset transition.
-    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault()
-    }
   }
 
   /** Rejects the extra clicks of a multi-click that straddles a finish/reset transition. */

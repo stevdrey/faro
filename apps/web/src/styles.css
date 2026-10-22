@@ -93,7 +93,7 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
 .jump-controls button { background: #f5efdf; padding: 8px; font-size: 24px; min-height: 56px; }
 .jump-controls p { text-align: center; margin: 0; font-weight: 750; }
 .number-line-scroll { overflow-x: auto; border: 1px solid #b5a98a; border-radius: 18px; margin: 18px 0; background: #fffef9; }
-.number-line { display: block; width: 640px; min-width: 100%; height: auto; }
+.number-line { display: block; min-width: 100%; height: auto; }
 .number-line text { font: 16px system-ui, sans-serif; fill: #263f39; }
 .number-axis { stroke: #52675c; stroke-width: 2; }
 .jump-left path, .jump-right path { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }

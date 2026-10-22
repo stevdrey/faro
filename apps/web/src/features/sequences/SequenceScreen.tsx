@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useEffect, useReducer, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import { useReducer, useRef, useState } from 'react'
 import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { SequenceExercise } from '../../contracts/exercise.ts'
+import { preventRepeatedActivation, useCompletionNotice } from '../shared/completion.ts'
 import { canJump, emptySequenceAttempt, JUMP_SIZES, sequenceAttemptReducer, visibleJumps } from './attempt.ts'
 import type { JumpKind, JumpSize } from './attempt.ts'
 import { NumberLine } from './NumberLine.tsx'
@@ -18,25 +18,13 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
   const terms = exercise.operands.terms
   const [state, dispatch] = useReducer(sequenceAttemptReducer, terms[terms.length - 1], emptySequenceAttempt)
   const [size, setSize] = useState<JumpSize>(1)
-  const notifiedTrace = useRef<ActionTracePayload | null>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
   const jumps = visibleJumps(state.trace)
 
-  useEffect(() => {
-    if (!state.completed) notifiedTrace.current = null
-    if (state.completed && notifiedTrace.current !== state.trace) {
-      notifiedTrace.current = state.trace
-      onComplete(state.trace)
-      resetButton.current?.focus()
-    }
-  }, [state.completed, state.trace, onComplete])
+  useCompletionNotice(state.completed, state.trace, onComplete, resetButton)
 
   function jump(kind: JumpKind) {
     dispatch({ kind, value: size, occurredAt: new Date().toISOString() })
-  }
-
-  function preventRepeatedActivation(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) event.preventDefault()
   }
 
   return <section className="activity sequence-activity" aria-labelledby="page-title" data-completed={state.completed}>
@@ -51,7 +39,7 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
     </div>
     <div className="sequence-terms" role="group" aria-label="Continuá la secuencia" data-testid="sequence-terms">
       {terms.map((term, index) => <span key={index}>{term}<span aria-hidden="true">,</span></span>)}
-      <span className="missing-symbol" aria-label="Número que sigue">□</span>
+      <span className="missing-symbol" role="img" aria-label="Número que sigue">□</span>
     </div>
     <fieldset className="jump-sizes" disabled={state.completed}>
       <legend>Tamaño del salto</legend>
@@ -62,10 +50,10 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
     </fieldset>
     <div className="jump-controls" role="group" aria-label="Saltar en la recta">
       <button type="button" aria-label={`Saltar ${size} a la izquierda`} aria-disabled={state.completed || !canJump(state.position, 'jumpLeft', size)}
-        onClick={() => jump('jumpLeft')}><span aria-hidden="true">←</span> {size}</button>
+        onKeyDown={preventRepeatedActivation} onClick={() => jump('jumpLeft')}><span aria-hidden="true">←</span> {size}</button>
       <p role="status" aria-atomic="true">{state.completed ? 'Terminaste' : `Estás en ${state.position}`}</p>
       <button type="button" aria-label={`Saltar ${size} a la derecha`} aria-disabled={state.completed || !canJump(state.position, 'jumpRight', size)}
-        onClick={() => jump('jumpRight')}>{size} <span aria-hidden="true">→</span></button>
+        onKeyDown={preventRepeatedActivation} onClick={() => jump('jumpRight')}>{size} <span aria-hidden="true">→</span></button>
     </div>
     <NumberLine terms={terms} position={state.position} jumps={jumps} />
     <section className="jump-history" aria-labelledby="jumps-title">

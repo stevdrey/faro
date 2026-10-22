@@ -92,14 +92,17 @@ reports/results are ignored. See [FARO-005 verification](docs/verification/missi
 
 ## Sequence number-line demo (FARO-006 / issue #23)
 
-Select **Secuencias** above the activity to open `30, 28, □`, or select the
-ascending example `10, 12, □`. Each attempt starts at the last visible term.
+Select **Secuencias** above the activity to open `30, 28, □` (later visits
+reopen the last chosen example), or select the ascending example `10, 12, □`. Each attempt starts at the last visible term.
 Choose a jump size of **1, 2, 5, or 10** (initially 1), then use the left/right
-buttons with mouse, touch, Enter, or Space. Size selection alone records no move.
+buttons with mouse, touch, Enter, or Space; holding a key records one jump. Size
+selection alone records no move.
 Every jump remains drawn and listed with its starting position, destination,
 direction, and magnitude, including corrections and repeated paths. The number
-line expands to include explored positions, including negative values; on small
-screens its labeled region scrolls horizontally by touch or keyboard.
+line widens to include explored positions, including negative values, labeling
+ticks on 1/2/5×10ⁿ steps (every unit at ordinary ranges). Arcs share a height
+lane unless they overlap. Whenever the line overflows, its labeled region becomes
+focusable and scrolls horizontally by touch or keyboard.
 
 **Listo** completes at any position with the same neutral **Terminaste** message.
 **Empezar de nuevo** clears both unfinished and completed attempts. Switching

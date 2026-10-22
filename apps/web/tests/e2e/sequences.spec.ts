@@ -180,3 +180,26 @@ test.describe('touch sequence controls', () => {
     expect(await page.evaluate(() => window.screenEvidence.completions[0].initialValue)).toBe(12)
   })
 })
+
+test('holding Enter on a jump button records one jump and the missing term is named', async ({ page }) => {
+  await page.goto(harness)
+  await expect(page.getByRole('img', { name: 'Número que sigue' })).toHaveText('□')
+  await page.getByRole('button', { name: 'Saltar 1 a la derecha' }).focus()
+  for (let repeat = 0; repeat < 5; repeat++) await page.keyboard.down('Enter')
+  await page.keyboard.up('Enter')
+  await expect(page.getByRole('status')).toHaveText('Estás en 29')
+  await expect(page.getByRole('listitem')).toHaveCount(1)
+})
+
+test('the number line is a keyboard stop only once it overflows on a wide screen', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 1000 })
+  await page.goto(harness)
+  const line = page.getByRole('region', { name: /Recta numérica/ })
+  await expect(line).toHaveAccessibleName('Recta numérica')
+  await expect(line).not.toHaveAttribute('tabindex')
+  await page.getByRole('radio', { name: '10', exact: true }).check()
+  for (let index = 0; index < 6; index++) await page.getByRole('button', { name: 'Saltar 10 a la derecha' }).click()
+  await expect(line).toHaveAccessibleName('Recta numérica; podés desplazarla de lado a lado')
+  await expect(line).toHaveAttribute('tabindex', '0')
+  expect(await line.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
+})

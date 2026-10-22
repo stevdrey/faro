@@ -11,16 +11,22 @@ exercise's last visible term supplies the trace's initial position (28 or 12).
 No expected answer or grading rule is introduced.
 
 Native radio controls choose 1, 2, 5, or 10, initially 1. Large labeled native
-buttons jump left/right using mouse, touch, Enter, or Space. Choosing a size
+buttons jump left/right using mouse, touch, Enter, or Space; a held key records
+one jump. Choosing a size
 does not move or enter the trace. Every accepted jump stays visible as a numbered
 arrowed arc and an ordered textual description of its origin, destination,
 direction, and size. Reversals, repeated paths, and negative positions remain
 part of the history. The displayed range includes visible terms and all visited
 positions; it expands rather than clipping movement to a correctness-based range.
+The line widens (up to 6000 units) so every unit keeps its own label at ordinary
+ranges; beyond that, ticks use 1/2/5×10ⁿ steps and unlabeled markers keep terms
+and visited positions visible. Arcs take the lowest height lane whose arcs and
+labels they do not overlap, and arc labels are clamped inside the drawing.
 Only signed 32-bit arithmetic bounds reject movements, preserving v1 replay limits.
 
-The diagram has a named image and a focusable, labeled horizontally scrollable
-region on small screens. A live status announces the current position; the full
+The diagram has a named image inside a labeled region that becomes focusable and
+announces horizontal scrolling only while it overflows. The missing term is a
+named image (`Número que sigue`). A live status announces the current position; the full
 history provides text equivalents without relying on color or drawing coordinates.
 No jump rows or arcs are collapsed or discarded during an attempt.
 
@@ -67,17 +73,21 @@ synthetic examples only and keep captures outside the repository.
 
 ## Results — 2026-10-22
 
-- Unit suite: **35 passed** (19 existing plus 16 sequence tests), covering both
+- Unit suite: **40 passed** (19 existing plus 21 sequence tests), covering both
   directions and all sizes, shared-fixture preservation, replay-derived history,
   corrections, negative positions, 32-bit bounds, timestamp-order independence,
-  immutable completion, and reset before/after completion.
-- Browser suite: **36 passed** (24 block regressions plus 12 sequence tests).
+  immutable completion, reset before/after completion, round tick steps, labeled
+  explored positions, width growth up to the cap, overlap lanes, and clamped arc
+  labels.
+- Browser suite: **38 passed** (24 block regressions plus 14 sequence tests).
   Sequence coverage includes production navigation, both examples, size changes,
   exact callback evidence under StrictMode, single completion, double-clicks,
   held Enter/Space, neutral outcomes, mouse/keyboard/touch operation, no API or
   browser-storage writes, and reset on switching/reload. At 320/360/700/1100px,
   controls fit, touch targets are at least 48px high, and eight repeated/negative
-  jumps retain their complete history and remain inside the diagram bounds.
+  jumps retain their complete history and remain inside the diagram bounds. A
+  held Enter on a jump button records one jump, and on a 1100px screen the line
+  is a tab stop only after it overflows.
 - Typecheck (application, contract, unit, and browser projects) and production
   build: **passed** with Node 24.21.0 and the existing npm 12.2.0 CLI.
 - API regression suite: **382 passed**, zero failures/errors/skips, with JDK 27
@@ -88,7 +98,10 @@ synthetic examples only and keep captures outside the repository.
   their viewport widths, and neither page reported runtime errors. Captures stayed
   in `/tmp`. Physical devices, screen-reader software, Firefox, and WebKit were
   not tested; automated browser coverage uses Chromium.
-- PR preflight: **13/40 changed files**, passed against `origin/main`.
+- Review follow-up: the completion notice and held-key guard are shared with the
+  block screen (`features/shared/completion.ts`), fixture guards are shared
+  (`features/shared/fixture-guards.ts`), and both block suites still pass.
+- PR preflight: **20/40 changed files**, passed against `origin/main`.
   `git diff --check`: **passed**. No manifests, lockfiles, or CI configuration changed.
 
 The first browser run caught held-Enter reset and double-click focus regressions;

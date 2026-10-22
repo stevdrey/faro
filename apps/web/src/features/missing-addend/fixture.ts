@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { Difficulty, MissingAddendExercise, MissingAddendPresentation, VisualModel } from '../../contracts/exercise.ts'
+import type { MissingAddendExercise, MissingAddendPresentation } from '../../contracts/exercise.ts'
+import { DIFFICULTIES, isOneOf, isRecord, VISUAL_MODELS } from '../shared/fixture-guards.ts'
 
-const VISUAL_MODELS: readonly VisualModel[] = ['BLOCKS', 'NUMBER_LINE', 'TENS_AND_ONES']
-const DIFFICULTIES: readonly Difficulty[] = ['EASY', 'MEDIUM', 'HARD']
 const PRESENTATIONS: readonly MissingAddendPresentation[] = [
   'TOTAL_EQUALS_KNOWN_PLUS_MISSING',
   'KNOWN_PLUS_MISSING_EQUALS_TOTAL',
   'MISSING_PLUS_KNOWN_EQUALS_TOTAL',
 ]
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isOneOf<T extends string>(options: readonly T[], value: unknown): value is T {
-  return (options as readonly unknown[]).includes(value)
-}
 
 function isCount(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0
