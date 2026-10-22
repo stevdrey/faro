@@ -9,17 +9,23 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "typecheck": "tsc --noEmit && tsc --project tsconfig.contracts.json",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.contracts.json && tsc --project tsconfig.unit.json",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "audit:dependencies": "npm audit --audit-level=high",
-    "audit:signatures": "npm audit signatures"
+    "audit:signatures": "npm audit signatures",
+    "test:unit": "node --test --test-isolation=none tests/unit/*.test.ts",
+    "test:e2e": "playwright test",
+    "test:install-browser": "playwright install --with-deps chromium",
+    "test": "npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",

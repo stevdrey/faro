@@ -1,6 +1,6 @@
 # Project Faro
 
-**Status: initial scaffold — not yet a functional learning application.**
+**Status: local missing-addend interaction demo — not yet a complete learning application.**
 
 Project Faro is an experimental, privacy-first mathematics learning experience for a seven-year-old child, piloted with an accompanying adult. The first version focuses on manipulable math exercises and short spoken explanations in **Costa Rican Spanish**. This is research-oriented software, **not** a diagnostic tool.
 
@@ -8,7 +8,7 @@ Project Faro is an experimental, privacy-first mathematics learning experience f
 
 Can a child solve `18 = 12 + □`, explain how, and receive fair feedback even when speech recognition mishears a number? The MVP must treat an automatic transcript as a hypothesis, never a fact, and must never interpret insufficient evidence as lack of understanding.
 
-The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **None of those features is implemented by this scaffold.**
+The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **Only the local missing-addend block screen and foundational contracts are implemented; the complete learning flow remains future work.**
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Speech recognition has an **application-owned port, immutable request/result con
 
 - **JDK 27** and **Gradle 9.8.1** installed on `PATH`.
 - **Node.js 24 LTS** with **npm 12.2.0**.
-- A current desktop browser; no GPU, cloud credentials, microphone, or model download is needed for this scaffold.
+- A current desktop browser; no GPU, cloud credentials, microphone, or model download is needed for the block demo.
 
 ## Getting started
 
@@ -52,11 +52,43 @@ To run separately: `gradle -p services/api bootRun --args='--spring.profiles.act
 
 ```bash
 gradle -p services/api test
+npm --prefix apps/web run test:unit
+npm --prefix apps/web run test:install-browser
+npm --prefix apps/web run test:e2e
 npm --prefix apps/web run typecheck
 npm --prefix apps/web run build
 npm --prefix apps/web audit --audit-level=high
 npm --prefix apps/web audit signatures
 ```
+
+## Missing-addend block demo (FARO-005 / issue #15)
+
+The home screen displays `12 + □ = 18` using the shared exercise fixture. Drag a
+unit from the reserve into the answer area, or return an answer block to the
+reserve. Mouse and touch use Pointer Events; large **+ / −** buttons provide tap
+and keyboard alternatives. The known twelve blocks stay fixed. The answer can
+contain **0–10** blocks, with corrections allowed throughout exploration.
+
+**Listo** closes the local attempt at any quantity and displays the same neutral
+**Terminaste** confirmation. It reveals no correctness or expected answer.
+**Intentar de nuevo** clears the attempt and starts at zero. Movements and the
+terminal finish event use the existing semantic action contract and remain only
+in memory: no attempt endpoint, storage, telemetry, audio, or grading is involved.
+The activity works with the web server alone; it does not require the API.
+Refreshing or closing the page also discards the attempt.
+
+Full attempt integration belongs to FARO-008, spoken instructions to FARO-009,
+and mathematical evaluation to later engine/assessment issues. This demonstration
+does not authorize an unsupervised or public pilot.
+
+Web verification uses Node's built-in test runner for the pure reducer and pinned
+Playwright/Chromium for real-browser mouse, keyboard, touch, and completion tests.
+Install the locked dependencies with npm 12.2.0 and lifecycle scripts disabled,
+then explicitly run `test:install-browser` to provision Chromium and its system
+libraries (the latter may require administrator permissions). CI performs this
+step explicitly too; no dependency install hook downloads a browser. Test data is
+synthetic, and screenshots, video, and traces are disabled by default. Generated
+reports/results are ignored. See [FARO-005 verification](docs/verification/missing-addend-screen.md).
 
 ## Supply-chain safety
 

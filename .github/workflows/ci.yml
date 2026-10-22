@@ -59,6 +59,12 @@ jobs:
         run: npm --prefix apps/web audit signatures
       - name: Audit vulnerabilities
         run: npm --prefix apps/web audit --audit-level=high
+      - name: Test interaction state
+        run: npm --prefix apps/web run test:unit
+      - name: Install test browser explicitly
+        run: npm --prefix apps/web run test:install-browser
+      - name: Test browser interactions
+        run: npm --prefix apps/web run test:e2e
       - name: Typecheck and build
         run: npm --prefix apps/web run build
 
