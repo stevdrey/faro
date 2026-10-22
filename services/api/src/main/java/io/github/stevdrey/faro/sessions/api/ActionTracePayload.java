@@ -57,6 +57,8 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
                 case ActionEvent.RemoveBlock e -> new RemoveBlock(e.value(), e.step(), at);
                 case ActionEvent.JumpLeft e -> new JumpLeft(e.value(), e.step(), at);
                 case ActionEvent.JumpRight e -> new JumpRight(e.value(), e.step(), at);
+                case ActionEvent.DecomposeTen ignored -> throw new IllegalArgumentException("Exchange events require schema version 2");
+                case ActionEvent.ComposeTen ignored -> throw new IllegalArgumentException("Exchange events require schema version 2");
                 case ActionEvent.FinishAttempt e -> new FinishAttempt(e.step(), at);
             };
         }

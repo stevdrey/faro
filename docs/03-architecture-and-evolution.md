@@ -29,9 +29,18 @@ Adult review (separate protected view) ├──> Spring Boot modular monolith
 
 `ExerciseDefinition(exerciseId, operands, visualModel, difficulty, expectedResult)` is backend-only; the family is derived from typed operands. `ExercisePayload.from(definition)` produces the public versioned contract with `exerciseId`, `schemaVersion`, `type`, `operands`, `visualModel`, and `difficulty`. Missing-addend payloads additionally carry an explicit `presentation` layout; the projection overload accepts the selected layout without changing the mathematical definition. The **backend retains expectedResult**, never exposing solutions in child-facing exercise payloads. See the [version 1 exercise contract and JSON fixtures](../contracts/exercises/v1/README.md).
 
-`ActionEvent` has five immutable domain variants: `PlaceBlock`, `RemoveBlock`, `JumpLeft`, `JumpRight`, and `FinishAttempt`. Every event carries `step` and `occurredAt`; movements also carry a positive `value` magnitude. `ActionTrace` preserves received order with consecutive steps from 1 and an optional terminal finish. `ActionReplay.replay(initialValue, trace)` deterministically returns `Result(finalValue, completed)` without grading or deriving the starting value from an exercise. Timestamps do not determine order. The [version 1 action contract and shared fixtures](../contracts/actions/v1/README.md) define strict JSON binding and matching web types separately from the pure Java domain.
+The v1 action contract exposes five immutable domain variants: `PlaceBlock`, `RemoveBlock`, `JumpLeft`, `JumpRight`, and `FinishAttempt`. Every event carries `step` and `occurredAt`; movements also carry a positive `value` magnitude. `ActionTrace` preserves received order with consecutive steps from 1 and an optional terminal finish. `ActionReplay.replay(initialValue, trace)` deterministically returns `Result(finalValue, completed)` without grading or deriving the starting value from an exercise. Timestamps do not determine order. The [version 1 action contract and shared fixtures](../contracts/actions/v1/README.md) define strict JSON binding and matching web types separately from the pure Java domain.
 
 `Attempt(id, exerciseId, sessionId, actionTrace, completionState)` remains a future concept; sessions, persistence, and attempt endpoints are not implemented by the action contract.
+
+FARO-007 adds two domain variants, `DecomposeTen` and `ComposeTen`, through the
+opt-in [v2 action contract](../contracts/actions/v2/README.md). V1 keeps its five
+original wire variants and rejects downconversion of exchange traces. The scalar
+`ActionReplay` rejects exchanges explicitly. `TensAndOnesReplay` reconstructs
+available and removed tens/units, validates source pieces and quantity-preserving
+exchanges, and never solves or grades an exercise. The local subtraction screen
+emits v2; existing block/sequence screens still emit v1. No attempt endpoint or
+storage is introduced.
 
 `SpeechRecognizer` and its immutable `SpeechRequest`, `SpeechHypothesis(transcript, languageTag, engineId, modelId, modelVersion, latencyMs, status)`, capabilities and provider configuration are implemented in `speech`. A hypothesis is only what an engine thinks was said; it contains no segments or confidence scores. The fake returns empty hypotheses and is selected only by the `dev` profile or tests; configuration requires an explicit provider and selects explicitly registered adapter factories without fallback. Real whisper.cpp integration and the `LOCAL_ONLY` enforcement gate remain future work. See [ASR contracts and provider selection](05-provider-independence.md).
 

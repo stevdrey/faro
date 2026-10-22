@@ -39,6 +39,14 @@ public sealed interface ActionEvent {
         }
     }
 
+    record DecomposeTen(int step, Instant occurredAt) implements ActionEvent {
+        public DecomposeTen { validateMetadata(step, occurredAt); }
+    }
+
+    record ComposeTen(int step, Instant occurredAt) implements ActionEvent {
+        public ComposeTen { validateMetadata(step, occurredAt); }
+    }
+
     private static void validateMovement(int value, int step, Instant occurredAt) {
         if (value <= 0) {
             throw new IllegalArgumentException("Movement value must be positive");

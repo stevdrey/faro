@@ -1,6 +1,6 @@
 # Project Faro
 
-**Status: local missing-addend and sequence interaction demos — not yet a complete learning application.**
+**Status: local missing-addend, sequence and subtraction interaction demos — not yet a complete learning application.**
 
 Project Faro is an experimental, privacy-first mathematics learning experience for a seven-year-old child, piloted with an accompanying adult. The first version focuses on manipulable math exercises and short spoken explanations in **Costa Rican Spanish**. This is research-oriented software, **not** a diagnostic tool.
 
@@ -8,7 +8,7 @@ Project Faro is an experimental, privacy-first mathematics learning experience f
 
 Can a child solve `18 = 12 + □`, explain how, and receive fair feedback even when speech recognition mishears a number? The MVP must treat an automatic transcript as a hypothesis, never a fact, and must never interpret insufficient evidence as lack of understanding.
 
-The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **Only the local missing-addend block screen, sequence number line, and foundational contracts are implemented; the complete learning flow remains future work.**
+The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **Only the three local visual interaction demos and foundational contracts are implemented; the complete learning flow remains future work.**
 
 ## Architecture
 
@@ -112,6 +112,24 @@ consecutive steps and UTC timestamps, plus one optional terminal `finishAttempt`
 Only signed 32-bit arithmetic limits block movements. No answer is calculated or
 graded, and no network, storage, telemetry, or audio integration is added.
 See [FARO-006 verification](docs/verification/sequence-number-line.md).
+
+## Subtraction tens-and-ones demo (FARO-007 / issue #24)
+
+Select **Restas** to explore `53 − 28 = □`, starting with five tens and three
+units. Move one ten or unit between **Quedan** and **Quitaste** by dragging with
+mouse/touch or using the labeled buttons with tap, Enter or Space. Each ten is
+drawn as a bar of ten cells. Both trays display their actual piece counts and
+current total. Available tens can be exchanged manually for ten units and back;
+no automatic borrowing occurs. Only source-piece availability limits exploration,
+so corrections and removal beyond 28 are allowed.
+
+**Listo** finishes at any state with **Terminaste**, without completing the
+equation or grading. **Empezar de nuevo** also clears unfinished attempts.
+Switching activity or reloading discards the attempt. Explicit exchanges and
+movements use the opt-in [v2 action contract](contracts/actions/v2/README.md),
+replayable in Java and TypeScript. Blocks and sequences retain v1.
+The demo adds no API, storage, telemetry, audio, model provider or dependencies.
+See [FARO-007 verification](docs/verification/subtraction-tens-and-ones.md).
 
 ## Supply-chain safety
 

@@ -2,15 +2,16 @@
 import { useEffect, useRef } from 'react'
 import type { KeyboardEvent, RefObject } from 'react'
 import type { ActionTracePayload } from '../../contracts/action.ts'
+import type { ActionTracePayloadV2 } from '../../contracts/action-v2.ts'
 
 /** Delivers each completed trace once, even under StrictMode, then moves focus to the reset control. */
-export function useCompletionNotice(
+export function useCompletionNotice<T extends ActionTracePayload | ActionTracePayloadV2>(
   completed: boolean,
-  trace: ActionTracePayload,
-  onComplete: (trace: ActionTracePayload) => void,
+  trace: T,
+  onComplete: (trace: T) => void,
   focusTarget: RefObject<HTMLElement | null>,
 ) {
-  const notifiedTrace = useRef<ActionTracePayload | null>(null)
+  const notifiedTrace = useRef<T | null>(null)
   useEffect(() => {
     if (!completed) notifiedTrace.current = null
     if (completed && notifiedTrace.current !== trace) {

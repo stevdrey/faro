@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 2,
+  "initialValue": 53,
+  "events": [
+    {
+      "kind": "removeBlock",
+      "value": 10,
+      "step": 1,
+      "occurredAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 10,
+      "step": 2,
+      "occurredAt": "2026-01-01T00:00:01Z"
+    },
+    {
+      "kind": "decomposeTen",
+      "step": 3,
+      "occurredAt": "2026-01-01T00:00:02Z"
+    },
+    {
+      "kind": "composeTen",
+      "step": 4,
+      "occurredAt": "2026-01-01T00:00:03Z"
+    },
+    {
+      "kind": "decomposeTen",
+      "step": 5,
+      "occurredAt": "2026-01-01T00:00:04Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 6,
+      "occurredAt": "2026-01-01T00:00:05Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 7,
+      "occurredAt": "2026-01-01T00:00:06Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 8,
+      "occurredAt": "2026-01-01T00:00:07Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 9,
+      "occurredAt": "2026-01-01T00:00:08Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 10,
+      "occurredAt": "2026-01-01T00:00:09Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 11,
+      "occurredAt": "2026-01-01T00:00:10Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 12,
+      "occurredAt": "2026-01-01T00:00:11Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 13,
+      "occurredAt": "2026-01-01T00:00:12Z"
+    },
+    {
+      "kind": "placeBlock",
+      "value": 1,
+      "step": 14,
+      "occurredAt": "2026-01-01T00:00:13Z"
+    },
+    {
+      "kind": "removeBlock",
+      "value": 1,
+      "step": 15,
+      "occurredAt": "2026-01-01T00:00:14Z"
+    },
+    {
+      "kind": "finishAttempt",
+      "step": 16,
+      "occurredAt": "2026-01-01T00:00:15Z"
+    }
+  ]
+}
