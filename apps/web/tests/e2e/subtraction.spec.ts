@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
-import sharedFixture from '../../../../contracts/actions/v2/fixtures/subtraction.json'
+import sharedFixture from '../../../../contracts/actions/v2/fixtures/subtraction.json' with { type: 'json' }
 import type { ActionTracePayloadV2 } from '../../src/contracts/action-v2.ts'
 import type {} from './harness.tsx'
 

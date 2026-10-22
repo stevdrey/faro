@@ -94,3 +94,22 @@ Sandbox restrictions prevented the initial browser-server start and Git prefligh
 browser and Java checks subsequently ran outside the sandbox without weakening
 repository checks. Physical devices, screen-reader software, Firefox and WebKit
 are not tested; browser automation uses Chromium and synthetic data only.
+
+## CI JSON import correction — 2026-10-22
+
+The first PR CI run failed during Playwright test collection because Node's ESM
+loader requires `with { type: 'json' }` on JSON imports. The subtraction test's
+shared-fixture import lacked that attribute; local verification had not caught
+the fresh-loader path. Reproduced the same error before the fix using `CI=true`,
+a new `PWTEST_CACHE_DIR`, and `test:e2e -- --list` (zero tests collected).
+
+Added the explicit attribute to the browser test and subtraction exercise fixture
+imports, following the existing sequence fixture convention. After the fix:
+
+- **52 browser tests passed** with `CI=true` and a new, empty Playwright cache:
+  `PWTEST_CACHE_DIR="$(mktemp -d)" CI=true npm --prefix apps/web run test:e2e`.
+- **51 web unit tests passed**; typecheck and production build passed again.
+- A native Node ESM import of the subtraction exercise module passed.
+
+These checks used Node 24.21.0, npm 12.2.0 and the existing locked dependencies.
+No Java code changed; the earlier 470-test Java result is retained, not rerun.
