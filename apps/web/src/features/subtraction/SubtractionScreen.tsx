@@ -6,6 +6,8 @@ import { preventRepeatedActivation, useCompletionNotice } from '../shared/comple
 import { usePieceDrag } from '../shared/piece-drag.ts'
 import { canOperate, emptySubtractionAttempt, subtractionAttemptReducer } from './attempt.ts'
 import type { Operation, PieceMove } from './attempt.ts'
+import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
+import { exerciseClip } from '../guidance/clips.ts'
 
 interface Props {
   exercise: SubtractionExercise
@@ -16,6 +18,8 @@ interface Props {
 /** Mount with the exercise ID as key when changing exercises. */
 export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(subtractionAttemptReducer, exercise.operands.minuend, emptySubtractionAttempt)
+  const [guidanceAttempt, restartGuidance] = useReducer((value: number) => value + 1, 0)
+  const clip = state.completed ? 'next' : exerciseClip(exercise)
   const availableArea = useRef<HTMLDivElement>(null)
   const removedArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
@@ -73,6 +77,7 @@ export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
       <h1 id="page-title">¿Cuántos quedan?</h1>
       <p>Mové decenas y unidades. Podés cambiar de idea.</p>
     </div>
+    {clip && <SpokenGuidance key={`${guidanceAttempt}-${clip}`} clip={clip} />}
     <div className="equation subtraction-equation" role="group" aria-label="Explorá la resta" data-testid="subtraction-equation">
       <span>{exercise.operands.minuend}</span><span>−</span><span>{exercise.operands.subtrahend}</span><span>=</span>
       <span className="missing-symbol" role="img" aria-label="Cantidad por descubrir">□</span>
@@ -90,8 +95,9 @@ export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
           if (state.trace.events.length === 0) return
           cancelDrag()
           dispatch({ kind: 'reset' })
+          restartGuidance()
           onReset()
-        }}>Empezar de nuevo</button>
+        }}>Empezar de nuevo <span aria-hidden="true">↻</span></button>
       <button type="button" className="finish-button" aria-disabled={state.completed} onKeyDown={preventRepeatedActivation}
         onMouseDown={event => { if (state.completed) event.preventDefault() }}
         onClick={() => { if (!state.completed) operate({ kind: 'finishAttempt' }) }}>Listo <span aria-hidden="true">→</span></button>

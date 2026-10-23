@@ -5,6 +5,8 @@ import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { MissingAddendExercise } from '../../contracts/exercise.ts'
 import { preventRepeatedActivation, useCompletionNotice } from '../shared/completion.ts'
 import { usePieceDrag } from '../shared/piece-drag.ts'
+import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
+import { exerciseClip } from '../guidance/clips.ts'
 import { attemptReducer, emptyAttempt, MAX_BLOCKS } from './attempt.ts'
 
 /** Multi-clicks this soon after finishing/resetting are treated as accidental repeats. */
@@ -19,6 +21,8 @@ interface Props {
 
 export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(attemptReducer, undefined, emptyAttempt)
+  const [guidanceAttempt, restartGuidance] = useReducer((value: number) => value + 1, 0)
+  const clip = state.completed ? 'next' : exerciseClip(exercise)
   const answerArea = useRef<HTMLDivElement>(null)
   const reserveArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
@@ -69,6 +73,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
         <h1 id="page-title">¿Cuántos bloques faltan?</h1>
         <p>Mové los bloques. Podés cambiar de idea.</p>
       </div>
+      {clip && <SpokenGuidance key={`${guidanceAttempt}-${clip}`} clip={clip} />}
       <div className="equation" role="group" aria-label="Completá la igualdad" data-testid="equation">{equation}</div>
       <div className="workspace">
         <section className="known-panel" aria-labelledby="known-title">
@@ -112,6 +117,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
             if (!acceptTransition(event)) return
             cancelDrag()
             dispatch({ kind: 'reset' })
+            restartGuidance()
             onReset()
           }}>Intentar de nuevo <span aria-hidden="true">↻</span></button>
           : <button type="button" className="finish-button" onKeyDown={preventRepeatedActivation} onClick={event => {

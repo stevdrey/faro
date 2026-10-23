@@ -75,6 +75,14 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 
+.spoken-guidance { margin: 16px 0; padding: 12px; background: #ebf0e6; border-radius: 16px; }
+.guidance-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.guidance-controls button { min-width: 48px; min-height: 48px; border: 1px solid #9b947d; border-radius: 12px; padding: 10px 14px; background: #fffef9; color: #284e43; font-weight: 650; }
+.guidance-state { text-align: center; color: #52675c; font-size: 14px; margin: 6px 0; }
+.guidance-state:empty { display: none; }
+.spoken-guidance summary { cursor: pointer; padding: 10px 0; min-height: 44px; box-sizing: border-box; }
+.spoken-guidance details p { margin: 6px 0; }
+
 .activity-picker { max-width: 900px; margin: 0 auto; padding: 16px 32px 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .activity-picker button, .restart-button, .jump-controls button { border: 1px solid #9b947d; border-radius: 14px; background: #fffef9; color: #284e43; min-height: 48px; padding: 10px 18px; font-weight: 650; }
 .activity-picker button[aria-pressed="true"] { background: #284e43; color: #fffef9; border-color: #284e43; }

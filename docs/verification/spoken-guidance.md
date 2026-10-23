@@ -1,0 +1,81 @@
+# FARO-009 — Short, replayable spoken instructions
+
+## Delivered behavior
+
+The four current exercise examples have a fixed instruction naming their numbers
+and explaining how to manipulate the visuals and finish with **Listo**. After
+completion, a separate neutral clip explains restarting or choosing another
+activity, regardless of the child's answer. No clip supplies the solution.
+
+**Escuchar guía** (accessible name: **Escuchar o repetir guía**) starts or restarts
+a clip from zero; the square **Detener guía** control stops and rewinds it. Both support keyboard and touch and have 48 px minimum
+height. Guidance is opt-in, without autoplay on entry, completion or restart.
+**Ver instrucciones** offers the exact transcript. Existing concise screen
+instructions and all visual controls remain available without audio.
+
+Finishing/restarting, changing activity/example and unmounting stop the old
+player, including a pending `play()` promise. Hiding the page stops it too,
+without automatic resumption. Reselecting an unchanged activity preserves it.
+An unavailable asset, playback error or browser rejection shows a neutral retry
+message without blocking exploration or completion. Playback uses one audio
+element per active screen. Unsupported operands do not select a clip that names
+different numbers. Existing v1/v2 action traces and completion focus are retained.
+
+## Assets and boundaries
+
+Seven committed, mono PCM16 WAVs last approximately 7–13 seconds: four exercise
+clips, one next-action clip and two future recording prompts. They were generated
+locally using eSpeak NG 1.52.0, the built-in `es-419` formant voice and Faro-authored
+Costa Rican Spanish wording. See the [asset manifest and provenance](../../apps/web/public/audio/README.md).
+The generator is an explicit developer command, never an install/build hook or
+runtime dependency. No npm dependency was added or changed.
+
+The web server serves same-origin assets with `preload="none"`; only explicit
+playback requests load them. No microphone, runtime speech synthesis, ASR/model,
+API call, storage, telemetry or external service is introduced. No real voice
+recordings or private child evidence were used. `recordingStart`/`recordingStop`
+are catalog entries for FARO-011; recording, consent, permission and stop/cancel
+controls remain that issue's work. They are not shown in today's demos.
+
+## Automated verification
+
+From the repository root, with installed locked dependencies and the provisioned
+Playwright Chromium:
+
+```bash
+npm --prefix apps/web run test:unit
+npm --prefix apps/web run test:e2e
+npm --prefix apps/web run build
+node .agents/scripts/pr-size-preflight.mjs
+```
+
+Unit tests check fixture-to-clip selection, unsupported operands, exact
+transcript/manifest agreement, SHA-256 hashes, valid nonempty PCM WAV data and the
+15-second clip limit. Browser tests cover replay/stop, keyboard repeat, touch
+layout, natural completion events, changing contexts, hidden-page cancellation,
+late playback promises, rejected playback, media errors and retries. They also
+check unchanged semantic completion, reset focus, no automatic playback, storage,
+API or external requests, and real Chromium playback/decoding of shipped assets.
+
+Local verification on 2026-10-22: **67 unit tests passed**, **85 browser tests
+passed**, typecheck/production build passed, and PR-size preflight passed at
+**21/40 files**. Mobile and desktop screenshots were inspected with synthetic
+fixtures. Execution used Node 24.21.0, the existing locked dependencies, installed
+Playwright Chromium and npm 11.19.0 for running scripts only; no dependency
+installation was performed. Fresh installs/CI still require the documented npm
+12.2.0 and disabled lifecycle scripts. Java/API checks were not rerun for this
+web-only change.
+
+## Manual acceptance and limits
+
+The browser tests verify playback and interaction, not intelligibility or a
+child's independent comprehension. No child usability session has been run.
+The generic Latin American synthetic accent is not a validated Costa Rican
+voice. Before a supervised pilot, an adult should listen to every clip, verify
+number pronunciation, voseo and comfortable volume/pace, then try a basic attempt
+using the speaker icon, visual controls, **Listo**, and the loop-arrow restart.
+Record only a concise verification summary, never private recordings.
+
+If listening reveals a problem, replace the fixed assets and update their source
+text, provenance and checksums before pilot use. The existing recording and pilot
+privacy prerequisites still apply.

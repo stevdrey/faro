@@ -1,0 +1,52 @@
+{
+  "generator": "eSpeak NG 1.52.0",
+  "voice": "es-419",
+  "wordsPerMinute": 155,
+  "pitch": 50,
+  "contentLanguage": "es-CR",
+  "license": "CC0-1.0",
+  "assets": [
+    {
+      "id": "blocks",
+      "file": "blocks.wav",
+      "text": "Ya tenemos doce bloques. Agregá los que faltan para llegar a dieciocho. Podés usar más o menos, o mover los bloques. Cuando terminés, tocá Listo.",
+      "sha256": "27ecb72b90239a209aa9ca393ec9e8e751ba930faa8c35f71a83f1405275413c"
+    },
+    {
+      "id": "descending",
+      "file": "descending.wav",
+      "text": "Treinta, veintiocho. ¿Qué número sigue? Elegí el tamaño del salto y usá las flechas. Podés cambiar de idea. Cuando terminés, tocá Listo.",
+      "sha256": "71535975e3d1dfafa6e91fff72f28fb9451e41928520b3d9d5b9b7b7e02a7264"
+    },
+    {
+      "id": "ascending",
+      "file": "ascending.wav",
+      "text": "Diez, doce. ¿Qué número sigue? Elegí el tamaño del salto y usá las flechas. Podés cambiar de idea. Cuando terminés, tocá Listo.",
+      "sha256": "7d3019bf630168822c293d857ce8fc736de52b08689c0dcf1d06bd3344898665"
+    },
+    {
+      "id": "subtraction",
+      "file": "subtraction.wav",
+      "text": "Hay cincuenta y tres. Quitá veintiocho moviendo decenas y unidades. Podés cambiar una decena por diez unidades, y devolver piezas. Cuando terminés, tocá Listo.",
+      "sha256": "89a7233c0649dd1051ad3e7eaabd4c005551e4d2ba9d02677ecde13985742e76"
+    },
+    {
+      "id": "next",
+      "file": "next.wav",
+      "text": "Terminaste. Si querés volver a jugar, tocá el botón con la flecha que da la vuelta. También podés elegir otra actividad arriba.",
+      "sha256": "94cf4cf6f17bbb2f282bfb8bfee261dfeb189da6b382d34cf83427cb31c47e74"
+    },
+    {
+      "id": "recordingStart",
+      "file": "recordingStart.wav",
+      "text": "Cuando estés listo, tocá el micrófono y contame cómo lo hiciste. Vos elegís cuándo empezar.",
+      "sha256": "6a895819c18210a6c33c6923b36f6233050bbf2658c7abfc750b14b7da35f417"
+    },
+    {
+      "id": "recordingStop",
+      "file": "recordingStop.wav",
+      "text": "Cuando terminés de contarme, tocá el botón para detener la grabación. También podés cancelar.",
+      "sha256": "91de0ce4039657cfb6312c07ed3207f7fd5c7801009806e5a331afcb0a0bb1b2"
+    }
+  ]
+}

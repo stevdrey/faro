@@ -73,12 +73,12 @@ contain **0–10** blocks, with corrections allowed throughout exploration.
 **Terminaste** confirmation. It reveals no correctness or expected answer.
 **Intentar de nuevo** clears the attempt and starts at zero. Movements and the
 terminal finish event use the existing semantic action contract and remain only
-in memory: no attempt endpoint, storage, telemetry, audio, or grading is involved.
+in memory: no attempt endpoint, storage, telemetry, audio capture, or grading is involved.
 The activity works with the web server alone; it does not require the API.
 Refreshing or closing the page also discards the attempt.
 
-The shared local completion controller is described below; spoken instructions
-belong to FARO-009 and mathematical evaluation to later engine/assessment issues. This demonstration
+The shared local completion controller and FARO-009 spoken guidance are described
+below; mathematical evaluation belongs to later engine/assessment issues. This demonstration
 does not authorize an unsupervised or public pilot.
 
 Web verification uses Node's built-in test runner for the pure reducer and pinned
@@ -110,7 +110,7 @@ examples or activities, or reloading, also discards the current attempt. The
 existing v1 semantic trace records `jumpLeft`/`jumpRight`, their positive `value`,
 consecutive steps and UTC timestamps, plus one optional terminal `finishAttempt`.
 Only signed 32-bit arithmetic limits block movements. No answer is calculated or
-graded, and no network, storage, telemetry, or audio integration is added.
+graded, and no API, storage, telemetry, or audio capture is added. FARO-009 adds local spoken guidance below.
 See [FARO-006 verification](docs/verification/sequence-number-line.md).
 
 ## Subtraction tens-and-ones demo (FARO-007 / issue #24)
@@ -128,7 +128,7 @@ equation or grading. **Empezar de nuevo** also clears unfinished attempts.
 Switching activity or reloading discards the attempt. Explicit exchanges and
 movements use the opt-in [v2 action contract](contracts/actions/v2/README.md),
 replayable in Java and TypeScript. Blocks and sequences retain v1.
-The demo adds no API, storage, telemetry, audio, model provider or dependencies.
+The demo adds no API, storage, telemetry, audio capture, model provider or dependencies.
 See [FARO-007 verification](docs/verification/subtraction-tens-and-ones.md).
 
 ## Explicit attempt completion (FARO-008 / issue #25)
@@ -147,9 +147,33 @@ The snapshot exists only in memory. Restarting, selecting a different activity
 or sequence example, reloading, or closing the page discards it. Selecting the
 already active activity/example preserves the attempt. Only the chosen sequence
 example is remembered while switching activities within the open page; its
-actions are discarded. No history, API request, browser storage, audio,
+actions are discarded. No history, API request, browser storage, audio capture,
 assessment, telemetry or model integration is added. See
 [FARO-008 verification](docs/verification/explicit-attempt-completion.md).
+
+## Replayable spoken guidance (FARO-009 / issue #26)
+
+Blocks, both sequence examples, and subtraction provide **Escuchar guía**
+(also replays) and a square **Detener guía** control, with a speaker icon, large touch/keyboard controls and an
+optional **Ver instrucciones** transcript. A short prerecorded clip names the
+exercise and its controls without giving the answer. After **Listo**, the replay
+button offers the same neutral next-action guidance at every result. Restart
+buttons share a loop-arrow icon so the clip can identify them without reading.
+
+Playback starts only on request; replay starts at the beginning. Finishing,
+restarting, changing activities/examples, hiding the page, or leaving it stops
+the current clip. A missing clip or blocked playback offers a short retry message
+and leaves visual exploration and completion available. Guidance records no
+semantic actions and does not change the completed attempt.
+
+Seven fixed WAV assets are served by the web server alone. The accepted first
+version uses offline-generated synthetic Latin American Spanish with Costa Rican
+wording; its accent is not a validated Costa Rican voice. It needs a supervised
+listening/usability review before pilot use. There is no runtime TTS, microphone
+request, cloud service, new dependency, storage or telemetry. Two recording
+instruction clips are prepared for FARO-011; today's UI does not expose a
+recording flow. See [FARO-009 verification](docs/verification/spoken-guidance.md)
+and [asset provenance and regeneration](apps/web/public/audio/README.md).
 
 ## Supply-chain safety
 

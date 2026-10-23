@@ -6,6 +6,8 @@ import { preventRepeatedActivation, useCompletionNotice } from '../shared/comple
 import { canJump, emptySequenceAttempt, JUMP_SIZES, sequenceAttemptReducer, visibleJumps } from './attempt.ts'
 import type { JumpKind, JumpSize } from './attempt.ts'
 import { NumberLine } from './NumberLine.tsx'
+import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
+import { exerciseClip } from '../guidance/clips.ts'
 
 interface Props {
   exercise: SequenceExercise
@@ -18,6 +20,8 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
   const terms = exercise.operands.terms
   const [state, dispatch] = useReducer(sequenceAttemptReducer, terms[terms.length - 1], emptySequenceAttempt)
   const [size, setSize] = useState<JumpSize>(1)
+  const [guidanceAttempt, restartGuidance] = useReducer((value: number) => value + 1, 0)
+  const clip = state.completed ? 'next' : exerciseClip(exercise)
   const resetButton = useRef<HTMLButtonElement>(null)
   const jumps = visibleJumps(state.trace)
 
@@ -37,6 +41,7 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
       <h1 id="page-title">¿Qué número sigue?</h1>
       <p>Elegí un salto y movete. Podés cambiar de idea.</p>
     </div>
+    {clip && <SpokenGuidance key={`${guidanceAttempt}-${clip}`} clip={clip} />}
     <div className="sequence-terms" role="group" aria-label="Continuá la secuencia" data-testid="sequence-terms">
       {terms.map((term, index) => <span key={index}>{term}<span aria-hidden="true">,</span></span>)}
       <span className="missing-symbol" role="img" aria-label="Número que sigue">□</span>
@@ -69,8 +74,9 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
           if (state.trace.events.length === 0) return
           dispatch({ kind: 'reset' })
           setSize(1)
+          restartGuidance()
           onReset()
-        }}>Empezar de nuevo</button>
+        }}>Empezar de nuevo <span aria-hidden="true">↻</span></button>
       <button type="button" className="finish-button" aria-disabled={state.completed}
         onKeyDown={preventRepeatedActivation}
         onMouseDown={event => { if (state.completed) event.preventDefault() }}
