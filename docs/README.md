@@ -17,6 +17,7 @@ All project documentation and GitHub work items are written in English. The user
 | [Sequence number-line verification](verification/sequence-number-line.md) | FARO-006 behavior, trace boundaries, and reproducible checks |
 | [Subtraction tens-and-ones verification](verification/subtraction-tens-and-ones.md) | FARO-007 manipulation, v2 exchange events, compatibility, and checks |
 | [Explicit attempt completion verification](verification/explicit-attempt-completion.md) | FARO-008 shared in-memory snapshot, explicit finish, lifecycle, and checks |
+| [Spoken guidance verification](verification/spoken-guidance.md) | FARO-009 prerecorded clips, replay/stop, failure handling, privacy, and checks |
 | [Action contract v2](../contracts/actions/v2/README.md) | Explicit decena/unit exchanges and replay of available/removed pieces |
 | [Supply-chain security](08-supply-chain-security.md) | npm install-script lockdown, Gradle verification, secure CI and reviews |
 | [ADR-0001](adr/0001-modular-monolith.md) | Modular monolith and separately managed local ASR |

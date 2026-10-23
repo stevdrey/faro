@@ -208,13 +208,19 @@ for (const [presentation, equation] of [
   })
 }
 
-test('mobile touch can drag in both directions, cancel a gesture, and use tap alternatives', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 360, height: 1000 }, isMobile: true, hasTouch: true })
+for (const height of [700, 1000]) test(`mobile touch can drag in both directions, cancel a gesture, and use tap alternatives at ${height}px height`, async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 360, height }, isMobile: true, hasTouch: true })
   const page = await context.newPage()
   await page.goto('http://127.0.0.1:5173/tests/e2e/harness.html')
+  // Expanded guidance adds height without changing the drag contract.
+  await page.getByText('Ver instrucciones', { exact: true }).click()
   const session = await context.newCDPSession(page)
   async function touchDrag(source: Locator, target: Locator, cancel = false) {
     await source.scrollIntoViewIfNeeded()
+    await target.scrollIntoViewIfNeeded()
+    await expect(source).toBeInViewport({ ratio: 1 })
+    await expect(target).toBeInViewport({ ratio: 1 })
+    // Scrolling changes both rectangles: read fresh coordinates only once both are visible.
     const start = await center(source)
     const end = await center(target)
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] })
@@ -225,6 +231,8 @@ test('mobile touch can drag in both directions, cancel a gesture, and use tap al
   }
   await touchDrag(page.getByTestId('reserve-block').first(), page.getByTestId('answer-area'))
   await expectCount(page, 1)
+  // Returning after scrolling upward must not reuse an off-screen drop coordinate.
+  await page.evaluate(() => window.scrollTo(0, 0))
   await touchDrag(page.getByTestId('answer-block').first(), page.getByTestId('reserve-area'))
   await expectCount(page, 0)
   await touchDrag(page.getByTestId('reserve-block').first(), page.getByTestId('answer-area'), true)

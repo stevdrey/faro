@@ -5,6 +5,7 @@ import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { MissingAddendExercise } from '../../contracts/exercise.ts'
 import { preventRepeatedActivation, useCompletionNotice } from '../shared/completion.ts'
 import { usePieceDrag } from '../shared/piece-drag.ts'
+import { useExerciseGuidance } from '../guidance/SpokenGuidance.tsx'
 import { attemptReducer, emptyAttempt, MAX_BLOCKS } from './attempt.ts'
 
 /** Multi-clicks this soon after finishing/resetting are treated as accidental repeats. */
@@ -19,6 +20,7 @@ interface Props {
 
 export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(attemptReducer, undefined, emptyAttempt)
+  const { guidance } = useExerciseGuidance(exercise, state.completed)
   const answerArea = useRef<HTMLDivElement>(null)
   const reserveArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
@@ -69,6 +71,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
         <h1 id="page-title">¿Cuántos bloques faltan?</h1>
         <p>Mové los bloques. Podés cambiar de idea.</p>
       </div>
+      {guidance}
       <div className="equation" role="group" aria-label="Completá la igualdad" data-testid="equation">{equation}</div>
       <div className="workspace">
         <section className="known-panel" aria-labelledby="known-title">
