@@ -66,6 +66,28 @@ installation was performed. Fresh installs/CI still require the documented npm
 12.2.0 and disabled lifecycle scripts. Java/API checks were not rerun for this
 web-only change.
 
+## PR #69 CI and review corrections
+
+The initial CI run failed when the touch test returned a block to an off-screen
+reserve. The helper scrolled only the source into view and sent a browser touch
+to the target's off-screen center. The same failure was reproduced locally after
+expanding the guidance and scrolling upward before returning the block. The
+helper now scrolls both elements into view, asserts their visibility, and then
+reads fresh coordinates. The regression covers 700 px and 1000 px viewport
+heights, corrections, cancellation and tap alternatives without adding retries.
+
+The Codex review also identified a queued `ended` event from earlier playback
+disabling **Detener guía** after replay. The handler now checks the element's
+current `ended` state before changing playback state. Two regression cases
+failed before the fix and now preserve stop/replay while a new play request is
+either resolved or pending; actual media completion remains covered.
+
+The six affected touch/audio scenarios passed five repetitions each: **30/30**,
+with retries still disabled. The complete browser suite with `CI=true` passed
+**88/88**; unit tests passed **67/67**, typecheck/build passed, and PR-size
+preflight passed at **22/40 files**. No dependencies, assets, domain contracts, or API
+code changed in this correction.
+
 ## Manual acceptance and limits
 
 The browser tests verify playback and interaction, not intelligibility or a

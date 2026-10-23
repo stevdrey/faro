@@ -141,8 +141,27 @@ for (const key of ['Enter', 'Space']) test(`playback can finish naturally; holdi
   await page.keyboard.down(key)
   await page.keyboard.up(key)
   expect(await page.evaluate(() => window.guidanceMedia.plays.length)).toBe(1)
+  await audio(page).evaluate(element => Object.defineProperty(element, 'ended', { configurable: true, value: true }))
   await audio(page).dispatchEvent('ended')
   await expect(stop(page)).toBeDisabled()
+})
+
+for (const mode of ['success', 'pending'] as const) test(`stale ended events cannot disable stop during ${mode} replay`, async ({ page }) => {
+  await mockMedia(page)
+  await page.goto(harness)
+  await listen(page).click()
+  await expect(stop(page)).toBeEnabled()
+  await page.evaluate(nextMode => { window.guidanceMedia.mode = nextMode }, mode)
+  await listen(page).click()
+  // The queued event is from the old playback; the rewound element is no longer ended.
+  expect(await audio(page).evaluate((element: HTMLAudioElement) => element.ended)).toBe(false)
+  await audio(page).dispatchEvent('ended')
+  await expect(stop(page)).toBeEnabled()
+  if (mode === 'pending') await page.evaluate(() => window.guidanceMedia.resolve())
+  await expect(page.getByText('Escuchando la guía…', { exact: true })).toBeVisible()
+  await stop(page).click()
+  await expect(stop(page)).toBeDisabled()
+  expect(await page.evaluate(() => window.guidanceMedia.active.size)).toBe(0)
 })
 
 test('hiding the page stops playback and does not resume it automatically', async ({ page }) => {

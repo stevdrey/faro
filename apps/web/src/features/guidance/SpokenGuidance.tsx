@@ -54,7 +54,12 @@ export function SpokenGuidance({ clip }: { clip: ClipId }) {
 
   return <div className="spoken-guidance" role="group" aria-label="Guía de voz">
     <audio ref={audio} src={clipSource(clip, import.meta.env.BASE_URL)} preload="none"
-      onEnded={() => { generation.current++; setPlayback('idle') }}
+      onEnded={event => {
+        // A previous playback's queued event can arrive after replay has rewound it.
+        if (!event.currentTarget.ended) return
+        generation.current++
+        setPlayback('idle')
+      }}
       onError={() => { stop(); setPlayback('unavailable') }} />
     <div className="guidance-controls">
       <button type="button" aria-label="Escuchar o repetir guía" onKeyDown={preventRepeatedActivation} onClick={play}>
