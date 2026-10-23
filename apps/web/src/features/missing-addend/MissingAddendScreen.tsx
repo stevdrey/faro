@@ -1,27 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useEffect, useReducer, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import { useReducer, useRef } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { ActionTracePayload } from '../../contracts/action.ts'
 import type { MissingAddendExercise } from '../../contracts/exercise.ts'
 import { preventRepeatedActivation, useCompletionNotice } from '../shared/completion.ts'
+import { usePieceDrag } from '../shared/piece-drag.ts'
 import { attemptReducer, emptyAttempt, MAX_BLOCKS } from './attempt.ts'
 
 /** Multi-clicks this soon after finishing/resetting are treated as accidental repeats. */
 const TRANSITION_GUARD_MS = 400
 
 type MoveKind = 'placeBlock' | 'removeBlock'
-interface Drag {
-  kind: MoveKind
-  pointerId: number
-  startX: number
-  startY: number
-}
-/** Rendered drag state; later pointer positions move the preview without re-rendering. */
-interface DragStart {
-  kind: MoveKind
-  x: number
-  y: number
-}
 interface Props {
   exercise: MissingAddendExercise
   onComplete: (trace: ActionTracePayload) => void
@@ -30,9 +19,6 @@ interface Props {
 
 export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(attemptReducer, undefined, emptyAttempt)
-  const [drag, setDrag] = useState<DragStart | null>(null)
-  const activeDrag = useRef<Drag | null>(null)
-  const preview = useRef<HTMLSpanElement>(null)
   const answerArea = useRef<HTMLDivElement>(null)
   const reserveArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
@@ -40,51 +26,15 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
 
   useCompletionNotice(state.completed, state.trace, onComplete, resetButton)
 
-  useEffect(() => {
-    function cancelOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') cancelDrag()
-    }
-    document.addEventListener('keydown', cancelOnEscape)
-    return () => document.removeEventListener('keydown', cancelOnEscape)
-  }, [])
-
-  function cancelDrag() {
-    activeDrag.current = null
-    setDrag(null)
-  }
+  const { drag, preview, cancelDrag, pieceHandlers } = usePieceDrag<MoveKind>({
+    canStart: kind => !state.completed && (kind === 'placeBlock' ? state.count < MAX_BLOCKS : state.count > 0),
+    dropTarget: kind => kind === 'placeBlock' ? answerArea.current : reserveArea.current,
+    onDrop: move,
+  })
 
   function move(kind: MoveKind | 'finishAttempt') {
     cancelDrag()
     dispatch({ kind, occurredAt: new Date().toISOString() })
-  }
-
-  function startDrag(event: ReactPointerEvent<HTMLElement>, kind: MoveKind) {
-    if (state.completed || activeDrag.current || !event.isPrimary || event.button !== 0) return
-    if ((kind === 'placeBlock' && state.count === MAX_BLOCKS) || (kind === 'removeBlock' && state.count === 0)) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    activeDrag.current = { kind, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY }
-    setDrag({ kind, x: event.clientX, y: event.clientY })
-  }
-
-  function updateDrag(event: ReactPointerEvent<HTMLElement>) {
-    if (activeDrag.current?.pointerId !== event.pointerId || !preview.current) return
-    preview.current.style.left = `${event.clientX}px`
-    preview.current.style.top = `${event.clientY}px`
-  }
-
-  function drop(event: ReactPointerEvent<HTMLElement>) {
-    const current = activeDrag.current
-    if (!current || current.pointerId !== event.pointerId) return
-    const target = current.kind === 'placeBlock' ? answerArea.current : reserveArea.current
-    const moved = Math.hypot(event.clientX - current.startX, event.clientY - current.startY) >= 8
-    const landedInside = target?.contains(document.elementFromPoint(event.clientX, event.clientY))
-    if (moved && landedInside) move(current.kind)
-    else cancelDrag()
-  }
-
-  function cancelPointer(event: ReactPointerEvent<HTMLElement>) {
-    if (activeDrag.current?.pointerId === event.pointerId) cancelDrag()
   }
 
   /** Rejects the extra clicks of a multi-click that straddles a finish/reset transition. */
@@ -131,11 +81,10 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
         <span className="workspace-plus" aria-hidden="true">+</span>
         <section className="answer-panel" aria-labelledby="answer-title">
           <h2 id="answer-title">Vos agregás <span aria-live="polite" aria-atomic="true">{state.count}</span></h2>
-          <div ref={answerArea} className={`answer-area drop-area${drag?.kind === 'placeBlock' ? ' drop-ready' : ''}`} data-testid="answer-area" role="group" aria-label="Área de respuesta">
+          <div ref={answerArea} className={`answer-area drop-area${drag?.move === 'placeBlock' ? ' drop-ready' : ''}`} data-testid="answer-area" role="group" aria-label="Área de respuesta">
             {Array.from({ length: state.count }, (_, index) => (
               <span key={index} className="block movable-block" role="img" aria-label="Bloque para devolver" data-testid="answer-block"
-                onPointerDown={event => startDrag(event, 'removeBlock')} onPointerMove={updateDrag} onPointerUp={drop}
-                onPointerCancel={cancelPointer} onLostPointerCapture={cancelPointer} />
+                {...pieceHandlers('removeBlock')} />
             ))}
             {state.count === 0 && <span className="empty-hint" aria-hidden="true">□<small>Traé bloques aquí</small></span>}
           </div>
@@ -148,11 +97,10 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
       </div>
       <section className="reserve-panel" aria-labelledby="reserve-title">
         <div className="reserve-heading"><h2 id="reserve-title">Tus bloques</h2><p><span aria-hidden="true">↔</span> Llevá y traé</p></div>
-        <div ref={reserveArea} className={`reserve-area drop-area${drag?.kind === 'removeBlock' ? ' drop-ready' : ''}`} data-testid="reserve-area" role="group" aria-label="Reserva de bloques">
+        <div ref={reserveArea} className={`reserve-area drop-area${drag?.move === 'removeBlock' ? ' drop-ready' : ''}`} data-testid="reserve-area" role="group" aria-label="Reserva de bloques">
           {Array.from({ length: MAX_BLOCKS - state.count }, (_, index) => (
             <span key={index} className="block movable-block" role="img" aria-label="Bloque para agregar" data-testid="reserve-block"
-              onPointerDown={event => startDrag(event, 'placeBlock')} onPointerMove={updateDrag} onPointerUp={drop}
-              onPointerCancel={cancelPointer} onLostPointerCapture={cancelPointer} />
+              {...pieceHandlers('placeBlock')} />
           ))}
         </div>
       </section>

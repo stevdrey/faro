@@ -5,8 +5,8 @@ quantity-preserving exchanges. There is no HTTP endpoint, persistence or grading
 
 ## Wire format and compatibility
 
-The envelope contains exactly `schemaVersion: 2`, `initialValue` (signed 32-bit
-integer), and `events` (ordered array). Each event has `kind`, consecutive `step`
+The envelope contains exactly `schemaVersion: 2`, `initialValue` (nonnegative
+signed 32-bit integer), and `events` (ordered array). Each event has `kind`, consecutive `step`
 from 1, and `occurredAt`. Timestamp rules and strict JSON binding are identical to
 [v1](../v1/README.md): UTC `YYYY-MM-DDTHH:MM:SS[.fraction]Z`, one to nine fractional
 digits, valid calendar dates, no coercions, unknown fields, duplicate keys, nulls
@@ -26,15 +26,17 @@ optional, unique and terminal; an empty trace and immediate finish are valid.
 Metadata and ordering validation do not establish that the requested pieces exist.
 
 Java exposes `ActionTracePayloadV2` and the dedicated strict
-`ActionTracePayloadV2Json` codec. TypeScript exposes readonly `ActionEventV2` and
+`ActionTracePayloadV2Json` codec. The five legacy event records are the v1 records
+themselves, so both versions share one wire shape and timestamp validation. TypeScript exposes readonly `ActionEventV2` and
 `ActionTracePayloadV2` in `apps/web/src/contracts/action-v2.ts`. TypeScript types
 alone do not validate arbitrary JSON. A future endpoint must explicitly use the
 strict codec or an equivalent converter; ordinary request binding is insufficient.
 
 V1 retains its original wire shape, event set and scalar semantics. It rejects v2
-envelopes and exchange kinds. Conversion of a domain trace containing exchanges
-to v1 fails explicitly; it never drops or translates exchanges into artificial
-remove/place movements. Existing screens and callbacks continue emitting v1.
+envelopes and exchange kinds. In Java, exchanges are a separate `ExchangeEvent`
+hierarchy carried only by `ExtendedActionTrace`; v1 conversion accepts only
+`ActionTrace`, so an exchange trace cannot be downgraded or translated into
+artificial remove/place movements. Existing screens and callbacks continue emitting v1.
 No persisted data or released consumers need migration. V2 is opt-in, and no
 automatic upgrade or downgrade is introduced.
 
@@ -56,11 +58,10 @@ magnitudes are rejected by this replay, though they remain valid generic v2
 event shapes. Every accepted operation conserves the initial total across trays.
 No piece IDs, coordinates, answer, audio or transcript are carried.
 
-Java uses the existing immutable `ActionTrace` for order and finalization checks.
+Java uses `ExtendedActionTrace`, which shares `ActionTrace`'s order and finalization checks.
 The web replay validates metadata and finalization and shares transition rules
 with the interactive reducer. Invalid traces fail without returning partial
-results. Java's scalar `ActionReplay` remains usable for the legacy events and
-explicitly directs exchange traces to `TensAndOnesReplay`.
+results. Java's scalar `ActionReplay` is unchanged and only accepts v1 `ActionTrace`.
 
 The shared synthetic [subtraction fixture](fixtures/subtraction.json) removes two
 tens, decomposes a ten, reverses that exchange, decomposes again, removes eight

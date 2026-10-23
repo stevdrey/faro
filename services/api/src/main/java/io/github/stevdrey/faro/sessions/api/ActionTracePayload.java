@@ -57,14 +57,13 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
                 case ActionEvent.RemoveBlock e -> new RemoveBlock(e.value(), e.step(), at);
                 case ActionEvent.JumpLeft e -> new JumpLeft(e.value(), e.step(), at);
                 case ActionEvent.JumpRight e -> new JumpRight(e.value(), e.step(), at);
-                case ActionEvent.DecomposeTen ignored -> throw new IllegalArgumentException("Exchange events require schema version 2");
-                case ActionEvent.ComposeTen ignored -> throw new IllegalArgumentException("Exchange events require schema version 2");
                 case ActionEvent.FinishAttempt e -> new FinishAttempt(e.step(), at);
             };
         }
     }
 
-    public record PlaceBlock(int value, int step, String occurredAt) implements Event {
+    // Legacy records are shared with v2, so both versions keep one wire shape and validation path.
+    public record PlaceBlock(int value, int step, String occurredAt) implements Event, ActionTracePayloadV2.Event {
         public PlaceBlock {
             Instant at = timestamp(occurredAt);
             new ActionEvent.PlaceBlock(value, step, at);
@@ -73,11 +72,11 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
         @Override
         public ActionEvent toDomain() {
-            return new ActionEvent.PlaceBlock(value, step, timestamp(occurredAt));
+            return new ActionEvent.PlaceBlock(value, step, Instant.parse(occurredAt));
         }
     }
 
-    public record RemoveBlock(int value, int step, String occurredAt) implements Event {
+    public record RemoveBlock(int value, int step, String occurredAt) implements Event, ActionTracePayloadV2.Event {
         public RemoveBlock {
             Instant at = timestamp(occurredAt);
             new ActionEvent.RemoveBlock(value, step, at);
@@ -86,11 +85,11 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
         @Override
         public ActionEvent toDomain() {
-            return new ActionEvent.RemoveBlock(value, step, timestamp(occurredAt));
+            return new ActionEvent.RemoveBlock(value, step, Instant.parse(occurredAt));
         }
     }
 
-    public record JumpLeft(int value, int step, String occurredAt) implements Event {
+    public record JumpLeft(int value, int step, String occurredAt) implements Event, ActionTracePayloadV2.Event {
         public JumpLeft {
             Instant at = timestamp(occurredAt);
             new ActionEvent.JumpLeft(value, step, at);
@@ -99,11 +98,11 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
         @Override
         public ActionEvent toDomain() {
-            return new ActionEvent.JumpLeft(value, step, timestamp(occurredAt));
+            return new ActionEvent.JumpLeft(value, step, Instant.parse(occurredAt));
         }
     }
 
-    public record JumpRight(int value, int step, String occurredAt) implements Event {
+    public record JumpRight(int value, int step, String occurredAt) implements Event, ActionTracePayloadV2.Event {
         public JumpRight {
             Instant at = timestamp(occurredAt);
             new ActionEvent.JumpRight(value, step, at);
@@ -112,11 +111,11 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
         @Override
         public ActionEvent toDomain() {
-            return new ActionEvent.JumpRight(value, step, timestamp(occurredAt));
+            return new ActionEvent.JumpRight(value, step, Instant.parse(occurredAt));
         }
     }
 
-    public record FinishAttempt(int step, String occurredAt) implements Event {
+    public record FinishAttempt(int step, String occurredAt) implements Event, ActionTracePayloadV2.Event {
         public FinishAttempt {
             Instant at = timestamp(occurredAt);
             new ActionEvent.FinishAttempt(step, at);
@@ -125,7 +124,7 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
 
         @Override
         public ActionEvent toDomain() {
-            return new ActionEvent.FinishAttempt(step, timestamp(occurredAt));
+            return new ActionEvent.FinishAttempt(step, Instant.parse(occurredAt));
         }
     }
 
@@ -133,8 +132,11 @@ public record ActionTracePayload(int schemaVersion, int initialValue, List<Event
         return new ActionTrace(events.stream().map(Event::toDomain).toList());
     }
 
-    /** Instant.parse is case-insensitive and accepts 24:00, leap seconds and extended years. */
-    private static Instant timestamp(String occurredAt) {
+    /**
+     * Strict wire parsing shared by every contract version. Instant.parse is case-insensitive and
+     * accepts 24:00, leap seconds and extended years, so it is used only on already-canonical values.
+     */
+    static Instant timestamp(String occurredAt) {
         Objects.requireNonNull(occurredAt, "occurredAt");
         if (!UTC_TIMESTAMP.matcher(occurredAt).matches()) {
             throw new IllegalArgumentException("occurredAt must be an ISO 8601 UTC timestamp ending in Z");

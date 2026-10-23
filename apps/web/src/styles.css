@@ -75,8 +75,7 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 
-.activity-picker { max-width: 900px; margin: 0 auto; padding: 16px 32px 0; display: flex; gap: 10px; }
-.activity-picker { flex-wrap: wrap; }
+.activity-picker { max-width: 900px; margin: 0 auto; padding: 16px 32px 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .activity-picker button, .restart-button, .jump-controls button { border: 1px solid #9b947d; border-radius: 14px; background: #fffef9; color: #284e43; min-height: 48px; padding: 10px 18px; font-weight: 650; }
 .activity-picker button[aria-pressed="true"] { background: #284e43; color: #fffef9; border-color: #284e43; }
 .example-picker { max-width: 900px; margin: 18px auto 0; padding: 0 32px; }

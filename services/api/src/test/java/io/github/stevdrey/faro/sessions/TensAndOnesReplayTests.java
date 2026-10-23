@@ -16,11 +16,11 @@ class TensAndOnesReplayTests {
 
     @Test
     void removesTwentyThenEightWithAnExplicitExchange() {
-        var events = new ArrayList<ActionEvent>();
+        var events = new ArrayList<TraceEvent>();
         events.add(new ActionEvent.RemoveBlock(10, 1, AT));
         events.add(new ActionEvent.RemoveBlock(10, 2, AT));
         assertThat(replay(53, events)).isEqualTo(new TensAndOnesReplay.Result(3, 3, 2, 0, false));
-        events.add(new ActionEvent.DecomposeTen(3, AT.minusSeconds(1)));
+        events.add(new ExchangeEvent.DecomposeTen(3, AT.minusSeconds(1)));
         assertThat(replay(53, events)).isEqualTo(new TensAndOnesReplay.Result(2, 13, 2, 0, false));
         for (int i = 0; i < 8; i++) events.add(new ActionEvent.RemoveBlock(1, events.size() + 1, AT));
         events.add(new ActionEvent.FinishAttempt(events.size() + 1, AT));
@@ -33,18 +33,18 @@ class TensAndOnesReplayTests {
 
     @Test
     void supportsReverseExchangesAndCorrectionsWithoutMutatingTheTrace() {
-        var events = List.<ActionEvent>of(
-                new ActionEvent.DecomposeTen(1, AT), new ActionEvent.RemoveBlock(1, 2, AT),
-                new ActionEvent.PlaceBlock(1, 3, AT), new ActionEvent.ComposeTen(4, AT),
+        var events = List.<TraceEvent>of(
+                new ExchangeEvent.DecomposeTen(1, AT), new ActionEvent.RemoveBlock(1, 2, AT),
+                new ActionEvent.PlaceBlock(1, 3, AT), new ExchangeEvent.ComposeTen(4, AT),
                 new ActionEvent.RemoveBlock(10, 5, AT), new ActionEvent.PlaceBlock(10, 6, AT));
-        var trace = new ActionTrace(events);
+        var trace = new ExtendedActionTrace(events);
         assertThat(TensAndOnesReplay.replay(53, trace)).isEqualTo(new TensAndOnesReplay.Result(5, 3, 0, 0, false));
         assertThat(trace.events()).containsExactlyElementsOf(events);
     }
 
     @Test
     void canRemoveEverythingAndReturnAllPieces() {
-        var events = new ArrayList<ActionEvent>();
+        var events = new ArrayList<TraceEvent>();
         for (int i = 0; i < 5; i++) events.add(new ActionEvent.RemoveBlock(10, events.size() + 1, AT));
         for (int i = 0; i < 3; i++) events.add(new ActionEvent.RemoveBlock(1, events.size() + 1, AT));
         assertThat(replay(53, events)).isEqualTo(new TensAndOnesReplay.Result(0, 0, 5, 3, false));
@@ -55,21 +55,21 @@ class TensAndOnesReplayTests {
 
     @Test
     void rejectsImpossibleMovesAndDoesNotBorrowOrCombineAcrossTrays() {
-        for (ActionEvent event : List.of(
+        for (TraceEvent event : List.<TraceEvent>of(
                 new ActionEvent.PlaceBlock(1, 1, AT), new ActionEvent.PlaceBlock(10, 1, AT),
                 new ActionEvent.RemoveBlock(8, 1, AT), new ActionEvent.RemoveBlock(20, 1, AT),
                 new ActionEvent.JumpLeft(1, 1, AT), new ActionEvent.JumpRight(1, 1, AT),
-                new ActionEvent.ComposeTen(1, AT))) {
+                new ExchangeEvent.ComposeTen(1, AT))) {
             assertThatThrownBy(() -> replay(53, List.of(event))).isInstanceOf(IllegalArgumentException.class);
         }
-        assertThatThrownBy(() -> replay(0, List.of(new ActionEvent.DecomposeTen(1, AT))))
+        assertThatThrownBy(() -> replay(0, List.of(new ExchangeEvent.DecomposeTen(1, AT))))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> replay(10, List.of(new ActionEvent.RemoveBlock(1, 1, AT))))
                 .isInstanceOf(IllegalArgumentException.class);
-        var events = new ArrayList<ActionEvent>();
-        events.add(new ActionEvent.DecomposeTen(1, AT));
+        var events = new ArrayList<TraceEvent>();
+        events.add(new ExchangeEvent.DecomposeTen(1, AT));
         for (int i = 0; i < 4; i++) events.add(new ActionEvent.RemoveBlock(1, events.size() + 1, AT));
-        events.add(new ActionEvent.ComposeTen(events.size() + 1, AT));
+        events.add(new ExchangeEvent.ComposeTen(events.size() + 1, AT));
         assertThatThrownBy(() -> replay(53, events)).isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -85,7 +85,7 @@ class TensAndOnesReplayTests {
 
     @Test
     void maximumQuantityCanBeDecomposedWithoutOverflow() {
-        var result = replay(Integer.MAX_VALUE, List.of(new ActionEvent.DecomposeTen(1, AT)));
+        var result = replay(Integer.MAX_VALUE, List.of(new ExchangeEvent.DecomposeTen(1, AT)));
         assertThat(result.remainingValue()).isEqualTo(Integer.MAX_VALUE);
         assertThat(result.ones()).isEqualTo(17);
         assertThatThrownBy(() -> replay(-1, List.of())).isInstanceOf(IllegalArgumentException.class);
@@ -94,17 +94,17 @@ class TensAndOnesReplayTests {
 
     @Test
     void exchangeMetadataAndTraceFinalizationRemainStrict() {
-        assertThatThrownBy(() -> new ActionEvent.DecomposeTen(0, AT)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ActionEvent.ComposeTen(-1, AT)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ActionEvent.DecomposeTen(1, null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ActionEvent.ComposeTen(1, null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ActionTrace(List.of(new ActionEvent.DecomposeTen(2, AT))))
+        assertThatThrownBy(() -> new ExchangeEvent.DecomposeTen(0, AT)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ExchangeEvent.ComposeTen(-1, AT)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ExchangeEvent.DecomposeTen(1, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ExchangeEvent.ComposeTen(1, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ExtendedActionTrace(List.of(new ExchangeEvent.DecomposeTen(2, AT))))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ActionTrace(List.of(new ActionEvent.FinishAttempt(1, AT), new ActionEvent.ComposeTen(2, AT))))
+        assertThatThrownBy(() -> new ExtendedActionTrace(List.of(new ActionEvent.FinishAttempt(1, AT), new ExchangeEvent.ComposeTen(2, AT))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    private static TensAndOnesReplay.Result replay(int initial, List<ActionEvent> events) {
-        return TensAndOnesReplay.replay(initial, new ActionTrace(events));
+    private static TensAndOnesReplay.Result replay(int initial, List<TraceEvent> events) {
+        return TensAndOnesReplay.replay(initial, new ExtendedActionTrace(events));
     }
 }

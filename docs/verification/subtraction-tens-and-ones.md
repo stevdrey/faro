@@ -36,8 +36,8 @@ The [v2 contract](../../contracts/actions/v2/README.md) records explicit
 `decomposeTen`/`composeTen` events and preserves the existing five event shapes.
 Java `TensAndOnesReplay` and the web replay reconstruct all four counts from the
 same synthetic fixture. The web reducer shares its transition rules with replay.
-V1 rejects exchanges, v2 envelopes and lossy downconversion. Scalar replay directs
-exchange traces to the specific piece replay. No HTTP endpoint, persistence,
+V1 rejects exchanges and v2 envelopes; exchanges are a separate Java type that
+v1 conversion and scalar replay cannot receive. No HTTP endpoint, persistence,
 storage, logs, telemetry, audio, transcript, provider or dependencies are added.
 Full attempt integration and mathematical/strategy assessment remain later work.
 
@@ -75,7 +75,7 @@ git diff --check
 - Java suite: **470 passed**, zero failures/errors/skips, with JDK 27 and Gradle
   9.8.1, all five tasks executed with `--no-build-cache --rerun-tasks`. Includes
   strict v2 JSON checks using the v1 malformed-input matrix, legacy events in v2,
-  exchange metadata, rejection of lossy v1 conversion, piece replay, corrections,
+  exchange metadata, piece replay, corrections,
   conservation, quantity bounds and immutable evidence.
 - Visual review: synthetic intermediate state (33 available, 20 removed, after
   exchanging a ten) inspected at 1100 and 360 px. Trays, segmented bars, counts,
@@ -113,3 +113,13 @@ imports, following the existing sequence fixture convention. After the fix:
 
 These checks used Node 24.21.0, npm 12.2.0 and the existing locked dependencies.
 No Java code changed; the earlier 470-test Java result is retained, not rerun.
+
+## Review follow-up — 2026-10-22
+
+Exchanges moved to a separate Java `ExchangeEvent` hierarchy with
+`ExtendedActionTrace`; v1 payload records, timestamp parsing and the strict codec
+base are now shared by v1 and v2; v2 rejects a negative `initialValue`; both piece
+screens share one pointer-drag hook. Rerun with the same toolchain:
+
+- Java suite: **470 passed**, zero failures/errors/skips (`--rerun-tasks`).
+- Typecheck: **passed**. Web unit tests: **51 passed**. Browser suite: **52 passed**.

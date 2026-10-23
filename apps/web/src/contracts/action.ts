@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-interface EventMetadata {
+export interface EventMetadata {
   readonly step: number
   /** ISO 8601 UTC timestamp ending in Z. Steps, not timestamps, define order. */
   readonly occurredAt: string

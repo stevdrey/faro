@@ -23,8 +23,6 @@ public final class ActionReplay {
                 }
                 case ActionEvent.JumpLeft e -> value = Math.subtractExact(value, e.value());
                 case ActionEvent.JumpRight e -> value = Math.addExact(value, e.value());
-                case ActionEvent.DecomposeTen ignored -> throw new IllegalArgumentException("Use TensAndOnesReplay for exchanges");
-                case ActionEvent.ComposeTen ignored -> throw new IllegalArgumentException("Use TensAndOnesReplay for exchanges");
                 case ActionEvent.FinishAttempt ignored -> completed = true;
             }
         }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useEffect, useReducer, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import { useReducer, useRef } from 'react'
 import type { ActionTracePayloadV2 } from '../../contracts/action-v2.ts'
 import type { SubtractionExercise } from '../../contracts/exercise.ts'
 import { preventRepeatedActivation, useCompletionNotice } from '../shared/completion.ts'
+import { usePieceDrag } from '../shared/piece-drag.ts'
 import { canOperate, emptySubtractionAttempt, subtractionAttemptReducer } from './attempt.ts'
 import type { Operation, PieceMove } from './attempt.ts'
 
@@ -12,61 +12,24 @@ interface Props {
   onComplete: (trace: ActionTracePayloadV2) => void
   onReset: () => void
 }
-interface Drag extends PieceMove {
-  pointerId: number
-  x: number
-  y: number
-}
 
 /** Mount with the exercise ID as key when changing exercises. */
 export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(subtractionAttemptReducer, exercise.operands.minuend, emptySubtractionAttempt)
-  const activeDrag = useRef<Drag | null>(null)
-  const [drag, setDrag] = useState<Drag | null>(null)
-  const preview = useRef<HTMLSpanElement>(null)
   const availableArea = useRef<HTMLDivElement>(null)
   const removedArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
   useCompletionNotice(state.completed, state.trace, onComplete, resetButton)
 
-  function cancelDrag() {
-    activeDrag.current = null
-    setDrag(null)
-  }
-  useEffect(() => {
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDrag() }
-    document.addEventListener('keydown', escape)
-    return () => document.removeEventListener('keydown', escape)
-  }, [])
+  const { drag, preview, cancelDrag, pieceHandlers } = usePieceDrag<PieceMove>({
+    canStart: move => canOperate(state, move),
+    dropTarget: move => move.kind === 'removeBlock' ? removedArea.current : availableArea.current,
+    onDrop: operate,
+  })
 
   function operate(operation: Operation) {
     cancelDrag()
     dispatch({ ...operation, occurredAt: new Date().toISOString() })
-  }
-  function startDrag(event: ReactPointerEvent<HTMLSpanElement>, move: PieceMove) {
-    if (!canOperate(state, move) || activeDrag.current || !event.isPrimary || event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    const current = { ...move, pointerId: event.pointerId, x: event.clientX, y: event.clientY }
-    activeDrag.current = current
-    setDrag(current)
-  }
-  function updateDrag(event: ReactPointerEvent<HTMLSpanElement>) {
-    if (activeDrag.current?.pointerId !== event.pointerId || !preview.current) return
-    preview.current.style.left = `${event.clientX}px`
-    preview.current.style.top = `${event.clientY}px`
-  }
-  function drop(event: ReactPointerEvent<HTMLSpanElement>) {
-    const current = activeDrag.current
-    if (!current || current.pointerId !== event.pointerId) return
-    const target = current.kind === 'removeBlock' ? removedArea.current : availableArea.current
-    if (Math.hypot(event.clientX - current.x, event.clientY - current.y) >= 8
-      && target?.contains(document.elementFromPoint(event.clientX, event.clientY))) {
-      operate({ kind: current.kind, value: current.value })
-    } else cancelDrag()
-  }
-  function cancelPointer(event: ReactPointerEvent<HTMLSpanElement>) {
-    if (activeDrag.current?.pointerId === event.pointerId) cancelDrag()
   }
   function control(label: string, operation: Operation) {
     const disabled = !canOperate(state, operation)
@@ -82,14 +45,13 @@ export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
     return <section className="subtraction-tray" aria-labelledby={`${prefix}-title`}>
       <h2 id={`${prefix}-title`}>{title} <span data-testid={`${prefix}-total`}>{tens * 10 + ones}</span></h2>
       <p data-testid={`${prefix}-counts`}>{tens} decenas y {ones} unidades</p>
-      <div ref={removed ? removedArea : availableArea} className={`piece-area drop-area${drag && (removed === (drag.kind === 'removeBlock')) ? ' drop-ready' : ''}`}
+      <div ref={removed ? removedArea : availableArea} className={`piece-area drop-area${drag && (removed === (drag.move.kind === 'removeBlock')) ? ' drop-ready' : ''}`}
         role="group" aria-label={`Piezas: ${title.toLowerCase()}`} data-testid={`${prefix}-area`}>
         {([10, 1] as const).map(value => Array.from({ length: value === 10 ? tens : ones }, (_, index) =>
           <span key={`${value}-${index}`} className={`math-piece ${value === 10 ? 'ten-piece' : 'unit-piece'}`}
             role="img" aria-label={`${value === 10 ? 'Decena' : 'Unidad'} para ${removed ? 'devolver' : 'quitar'}`}
             data-testid={`${prefix}-${value === 10 ? 'ten' : 'one'}`}
-            onPointerDown={event => startDrag(event, { kind, value })} onPointerMove={updateDrag} onPointerUp={drop}
-            onPointerCancel={cancelPointer} onLostPointerCapture={cancelPointer}>
+            {...pieceHandlers({ kind, value })}>
             {Array.from({ length: value === 10 ? 10 : 1 }, (_, cell) => <span aria-hidden="true" key={cell} />)}
           </span>,
         ))}
@@ -135,9 +97,9 @@ export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
         onClick={() => { if (!state.completed) operate({ kind: 'finishAttempt' }) }}>Listo <span aria-hidden="true">→</span></button>
     </footer>
     <p className="privacy-note">Demo local · No graba audio. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
-    {drag && <span ref={preview} className={`math-piece drag-preview ${drag.value === 10 ? 'ten-piece' : 'unit-piece'}`}
+    {drag && <span ref={preview} className={`math-piece drag-preview ${drag.move.value === 10 ? 'ten-piece' : 'unit-piece'}`}
       aria-hidden="true" style={{ left: drag.x, top: drag.y }}>
-      {Array.from({ length: drag.value === 10 ? 10 : 1 }, (_, index) => <span key={index} />)}
+      {Array.from({ length: drag.move.value === 10 ? 10 : 1 }, (_, index) => <span key={index} />)}
     </span>}
   </section>
 }

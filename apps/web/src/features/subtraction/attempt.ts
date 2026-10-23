@@ -85,8 +85,8 @@ export function replayTensAndOnes(trace: ActionTracePayloadV2): Pieces {
       || !Number.isFinite(Date.parse(at)) || new Date(at).toISOString().slice(0, 19) !== at.slice(0, 19)) {
       throw new TypeError('Invalid event metadata')
     }
-    if (event.kind === 'jumpLeft' || event.kind === 'jumpRight') throw new TypeError('Jumps are not piece movements')
     if (event.kind !== 'placeBlock' && event.kind !== 'removeBlock' && 'value' in event) throw new TypeError('Structural events have no value')
+    // Jumps and other unsupported kinds fall through to applyOperation's default rejection.
     const next = applyOperation(state, event as Operation)
     if (!next) throw new RangeError('Invalid piece operation')
     state = next

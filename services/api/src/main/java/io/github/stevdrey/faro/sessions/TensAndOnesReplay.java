@@ -7,7 +7,7 @@ import java.util.Objects;
 public final class TensAndOnesReplay {
     private TensAndOnesReplay() {}
 
-    public static Result replay(int initialValue, ActionTrace trace) {
+    public static Result replay(int initialValue, ExtendedActionTrace trace) {
         Objects.requireNonNull(trace, "trace");
         if (initialValue < 0) throw new IllegalArgumentException("Initial quantity must be nonnegative");
         int tens = initialValue / 10;
@@ -15,7 +15,7 @@ public final class TensAndOnesReplay {
         int removedTens = 0;
         int removedOnes = 0;
         boolean completed = false;
-        for (ActionEvent event : trace.events()) {
+        for (TraceEvent event : trace.events()) {
             switch (event) {
                 case ActionEvent.RemoveBlock e -> {
                     requirePiece(e.value());
@@ -41,12 +41,12 @@ public final class TensAndOnesReplay {
                         ones++;
                     }
                 }
-                case ActionEvent.DecomposeTen ignored -> {
+                case ExchangeEvent.DecomposeTen ignored -> {
                     require(tens > 0);
                     tens--;
                     ones = Math.addExact(ones, 10);
                 }
-                case ActionEvent.ComposeTen ignored -> {
+                case ExchangeEvent.ComposeTen ignored -> {
                     require(ones >= 10);
                     ones -= 10;
                     tens++;

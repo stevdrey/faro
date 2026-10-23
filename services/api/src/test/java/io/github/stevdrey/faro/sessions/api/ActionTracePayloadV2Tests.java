@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stevdrey.faro.sessions.ActionEvent;
-import io.github.stevdrey.faro.sessions.ActionReplay;
-import io.github.stevdrey.faro.sessions.ActionTrace;
+import io.github.stevdrey.faro.sessions.ExtendedActionTrace;
 import io.github.stevdrey.faro.sessions.TensAndOnesReplay;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -43,7 +42,7 @@ class ActionTracePayloadV2Tests {
         assertThat(ActionTracePayloadV2.from(payload.initialValue(), payload.toDomain())).isEqualTo(payload);
         var events = payload.toDomain().events();
         for (int end = 0; end <= events.size(); end++) {
-            var result = TensAndOnesReplay.replay(53, new ActionTrace(events.subList(0, end)));
+            var result = TensAndOnesReplay.replay(53, new ExtendedActionTrace(events.subList(0, end)));
             assertThat(result.remainingValue() + result.removedValue()).isEqualTo(53);
             if (end == 2) assertThat(result).isEqualTo(new TensAndOnesReplay.Result(3, 3, 2, 0, false));
             if (end == 3) assertThat(result).isEqualTo(new TensAndOnesReplay.Result(2, 13, 2, 0, false));
@@ -81,9 +80,6 @@ class ActionTracePayloadV2Tests {
         assertThat(json.read(json.write(payload))).isEqualTo(payload);
         assertThatThrownBy(() -> v1.read(valid.replace("\"schemaVersion\":2", "\"schemaVersion\":1")))
                 .isInstanceOf(JacksonException.class);
-        assertThatThrownBy(() -> ActionTracePayload.from(53, payload.toDomain())).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> ActionReplay.replay(53, payload.toDomain()))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("TensAndOnesReplay");
         for (String value : List.of("0", "10", "null")) {
             assertThatThrownBy(() -> json.read(valid.replace("\"step\":1", "\"value\":" + value + ",\"step\":1")))
                     .isInstanceOf(JacksonException.class);
@@ -128,6 +124,9 @@ class ActionTracePayloadV2Tests {
         source.clear();
         assertThat(payload.events()).containsExactly(event);
         assertThatThrownBy(() -> new ActionTracePayloadV2(1, 53, List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ActionTracePayloadV2(2, -1, List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> json.read("{\"schemaVersion\":2,\"initialValue\":-1,\"events\":[]}"))
+                .isInstanceOf(JacksonException.class);
         assertThatThrownBy(() -> new ActionTracePayloadV2(2, 53, List.of(event, event))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ActionTracePayloadV2.ComposeTen(0, AT)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ActionTracePayloadV2.DecomposeTen(1, "2026-02-30T00:00:00Z"))
@@ -135,7 +134,7 @@ class ActionTracePayloadV2Tests {
         assertThatThrownBy(() -> new ActionTracePayloadV2.ComposeTen(1, null)).isInstanceOf(NullPointerException.class);
         assertThat(new ActionTracePayloadV2(2, 0, List.of()).toDomain().events()).isEmpty();
         var finished = ActionTracePayloadV2.from(53,
-                new ActionTrace(List.of(new ActionEvent.FinishAttempt(1, Instant.parse(AT)))));
+                new ExtendedActionTrace(List.of(new ActionEvent.FinishAttempt(1, Instant.parse(AT)))));
         assertThat(TensAndOnesReplay.replay(53, finished.toDomain()).completed()).isTrue();
     }
 }

@@ -33,10 +33,12 @@ The v1 action contract exposes five immutable domain variants: `PlaceBlock`, `Re
 
 `Attempt(id, exerciseId, sessionId, actionTrace, completionState)` remains a future concept; sessions, persistence, and attempt endpoints are not implemented by the action contract.
 
-FARO-007 adds two domain variants, `DecomposeTen` and `ComposeTen`, through the
-opt-in [v2 action contract](../contracts/actions/v2/README.md). V1 keeps its five
-original wire variants and rejects downconversion of exchange traces. The scalar
-`ActionReplay` rejects exchanges explicitly. `TensAndOnesReplay` reconstructs
+FARO-007 adds a separate sealed `ExchangeEvent` hierarchy (`DecomposeTen`,
+`ComposeTen`) through the opt-in [v2 action contract](../contracts/actions/v2/README.md).
+`ActionEvent` keeps its five original variants; both extend `TraceEvent`, and an
+`ExtendedActionTrace` holds either kind with the same ordering rules as
+`ActionTrace`. V1 conversion and the scalar `ActionReplay` accept only
+`ActionTrace`, so exchanges cannot reach them at compile time. `TensAndOnesReplay` reconstructs
 available and removed tens/units, validates source pieces and quantity-preserving
 exchanges, and never solves or grades an exercise. The local subtraction screen
 emits v2; existing block/sequence screens still emit v1. No attempt endpoint or
