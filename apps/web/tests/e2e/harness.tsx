@@ -29,6 +29,7 @@ interface AttemptEvidence {
 
 declare global {
   interface Window {
+    unmountHarness: () => void
     screenEvidence: TestEvidence
     attemptEvidence: AttemptEvidence
     redeliverCompletion: () => void
@@ -59,7 +60,9 @@ function onComplete(trace: CompletedTrace) {
   window.screenEvidence.frozen = Object.isFrozen(trace) && Object.isFrozen(trace.events) && trace.events.every(Object.isFrozen)
 }
 function onReset() { window.screenEvidence.resets++ }
-createRoot(document.getElementById('app')!).render(<StrictMode>
+const root = createRoot(document.getElementById('app')!)
+window.unmountHarness = () => root.unmount()
+root.render(<StrictMode>
   {parameters.get('activity') === 'app' ? <AppHarness /> : parameters.get('activity') === 'sequences'
     ? <SequenceScreen exercise={parameters.get('example') === 'ascending' ? ascendingExercise : descendingExercise} onComplete={onComplete} onReset={onReset} />
     : parameters.get('activity') === 'subtraction'

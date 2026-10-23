@@ -80,6 +80,6 @@ export function SequenceScreen({ exercise, onComplete, onReset }: Props) {
         onMouseDown={event => { if (state.completed) event.preventDefault() }}
         onClick={() => dispatch({ kind: 'finishAttempt', occurredAt: new Date().toISOString() })}>Listo <span aria-hidden="true">→</span></button>
     </footer>
-    <p className="privacy-note">Demo local · No graba audio. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
+    <p className="privacy-note">Demo local · La explicación de voz después de Listo es opcional y requiere habilitación adulta. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
   </section>
 }
