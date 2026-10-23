@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useRef } from 'react'
 import type { KeyboardEvent, RefObject } from 'react'
-import type { ActionTracePayload } from '../../contracts/action.ts'
-import type { ActionTracePayloadV2 } from '../../contracts/action-v2.ts'
+import type { CompletedTrace } from './attempt-completion.ts'
 
 /** Delivers each completed trace once, even under StrictMode, then moves focus to the reset control. */
-export function useCompletionNotice<T extends ActionTracePayload | ActionTracePayloadV2>(
+export function useCompletionNotice<T extends CompletedTrace>(
   completed: boolean,
   trace: T,
   onComplete: (trace: T) => void,

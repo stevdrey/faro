@@ -1,55 +1,56 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useState } from 'react'
-import { demoExercise } from './features/missing-addend/exercise.ts'
+import { useCallback, useState } from 'react'
 import { MissingAddendScreen } from './features/missing-addend/MissingAddendScreen.tsx'
-import { ascendingExercise, descendingExercise } from './features/sequences/exercise.ts'
 import { SequenceScreen } from './features/sequences/SequenceScreen.tsx'
-import { subtractionExercise } from './features/subtraction/exercise.ts'
 import { SubtractionScreen } from './features/subtraction/SubtractionScreen.tsx'
+import { exerciseFor, initialSelection, isExample } from './features/shared/activity-selection.ts'
+import type { Activity, ActivitySelection } from './features/shared/activity-selection.ts'
+import type { CompletedTrace } from './features/shared/attempt-completion.ts'
 import { useAttemptCompletion } from './features/shared/use-attempt-completion.ts'
 import type { AttemptCompletionController } from './features/shared/use-attempt-completion.ts'
 
-type Activity = 'blocks' | 'sequences' | 'subtraction'
-type Example = 'descending' | 'ascending'
-
 export function App() {
-  const completion = useAttemptCompletion(demoExercise.exerciseId)
+  const completion = useAttemptCompletion(exerciseFor(initialSelection).exerciseId)
   return <DemoActivities completion={completion} />
 }
 
 /** Activity selection and completion selection change together, without resetting an active choice. */
 export function DemoActivities({ completion }: { completion: AttemptCompletionController }) {
-  const [activity, setActivity] = useState<Activity>('blocks')
-  const [example, setExample] = useState<Example>('descending')
-  const sequence = example === 'descending' ? descendingExercise : ascendingExercise
+  const [selection, setSelection] = useState<ActivitySelection>(initialSelection)
+  const exercise = exerciseFor(selection)
+  const { complete, reset } = completion
+  // Each screen reports the exercise it shows, not whatever the controller last selected.
+  const onComplete = useCallback((trace: CompletedTrace) => complete(exercise.exerciseId, trace), [complete, exercise.exerciseId])
+  const onReset = useCallback(() => reset(exercise.exerciseId), [reset, exercise.exerciseId])
 
-  function selectActivity(next: Activity) {
-    completion.selectExercise(next === 'blocks' ? demoExercise.exerciseId
-      : next === 'subtraction' ? subtractionExercise.exerciseId : sequence.exerciseId)
-    setActivity(next)
+  function select(next: ActivitySelection) {
+    completion.selectExercise(exerciseFor(next).exerciseId)
+    setSelection(next)
   }
 
-  function selectExample(next: Example) {
-    completion.selectExercise(next === 'descending' ? descendingExercise.exerciseId : ascendingExercise.exerciseId)
-    setExample(next)
-  }
+  const activityButton = (activity: Activity, label: string) =>
+    <button type="button" aria-pressed={selection.activity === activity}
+      onClick={() => select({ ...selection, activity })}>{label}</button>
 
   return <>
     <nav className="activity-picker" aria-label="Elegir actividad">
-      <button type="button" aria-pressed={activity === 'blocks'} onClick={() => selectActivity('blocks')}>Bloques</button>
-      <button type="button" aria-pressed={activity === 'sequences'} onClick={() => selectActivity('sequences')}>Secuencias</button>
-      <button type="button" aria-pressed={activity === 'subtraction'} onClick={() => selectActivity('subtraction')}>Restas</button>
+      {activityButton('blocks', 'Bloques')}
+      {activityButton('sequences', 'Secuencias')}
+      {activityButton('subtraction', 'Restas')}
     </nav>
-    {activity === 'blocks'
-      ? <MissingAddendScreen exercise={demoExercise} onComplete={completion.onComplete} onReset={completion.onReset} />
-      : activity === 'subtraction'
-        ? <SubtractionScreen exercise={subtractionExercise} onComplete={completion.onComplete} onReset={completion.onReset} />
+    {exercise.type === 'MISSING_ADDEND'
+      ? <MissingAddendScreen exercise={exercise} onComplete={onComplete} onReset={onReset} />
+      : exercise.type === 'SUBTRACTION'
+        ? <SubtractionScreen exercise={exercise} onComplete={onComplete} onReset={onReset} />
       : <>
-        <div className="example-picker"><label>Elegí una secuencia <select value={example} onChange={event => selectExample(event.target.value as Example)}>
+        <div className="example-picker"><label>Elegí una secuencia <select value={selection.example} onChange={event => {
+          const example = event.target.value
+          if (isExample(example)) select({ ...selection, example })
+        }}>
           <option value="descending">30, 28, □</option>
           <option value="ascending">10, 12, □</option>
         </select></label><p>Cambiar de ejemplo borra tus saltos.</p></div>
-        <SequenceScreen key={sequence.exerciseId} exercise={sequence} onComplete={completion.onComplete} onReset={completion.onReset} />
+        <SequenceScreen key={exercise.exerciseId} exercise={exercise} onComplete={onComplete} onReset={onReset} />
       </>}
   </>
 }

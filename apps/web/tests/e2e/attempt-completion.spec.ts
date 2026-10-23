@@ -21,6 +21,12 @@ async function expectCurrent(page: Page, exerciseId: string | null) {
   await expect.poll(() => page.evaluate(() => window.attemptEvidence.current?.exerciseId ?? null)).toBe(exerciseId)
 }
 
+/** Lets React commit pending updates before asserting that nothing changed. */
+async function settle(page: Page) {
+  await page.evaluate(() => new Promise<void>(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve)))))
+}
+
 async function holdAndRelease(page: Page, key: string) {
   try {
     await page.keyboard.down(key)
@@ -62,9 +68,14 @@ for (const activity of activities) {
       }
       // Re-delivery and reselecting the active activity must preserve the same object.
       await page.evaluate(() => window.redeliverCompletion())
+      await settle(page)
       await button(page, activity.name).click()
+      await settle(page)
       expect(await page.evaluate(() => window.attemptEvidence.current === window.attemptEvidence.deliveries[0])).toBe(true)
-      expect(await page.evaluate(() => window.attemptEvidence)).toEqual(evidence)
+      expect(await page.evaluate(() => {
+        const { current, deliveries } = window.attemptEvidence
+        return { current, deliveries }
+      })).toEqual({ current: evidence.current, deliveries: evidence.deliveries })
       await button(page, activity.reset).dblclick()
       await expectCurrent(page, null)
       await expect(button(page, 'Listo')).toBeEnabled()
@@ -162,9 +173,16 @@ test('reload forgets the controller and completing all activities writes no stor
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0])
   expect(requests).toEqual([])
   await page.reload()
-  await expectCurrent(page, null)
-  expect(await page.evaluate(() => window.attemptEvidence.deliveries)).toEqual([])
+  // Wait for the remounted controller to commit, so a rehydrated snapshot would be visible.
+  await expect.poll(() => page.evaluate(() => window.attemptEvidence.effects)).toBeGreaterThan(0)
+  await expect(page.getByRole('status')).toHaveText('A tu ritmo.')
+  await settle(page)
+  expect(await page.evaluate(() => {
+    const { current, deliveries } = window.attemptEvidence
+    return { current, deliveries, storage: [localStorage.length, sessionStorage.length] }
+  })).toEqual({ current: null, deliveries: [], storage: [0, 0] })
   await expect(button(page, 'Bloques')).toHaveAttribute('aria-pressed', 'true')
+  await expect(button(page, 'Listo')).toBeEnabled()
 })
 
 test.describe('touch integration', () => {

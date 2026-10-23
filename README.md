@@ -137,8 +137,10 @@ One click or tap on **Listo** explicitly completes the active exercise, includin
 an attempt with no movements. Blocks, sequences and subtraction all deliver one
 deeply frozen semantic trace ending in `finishAttempt`. The application retains
 one immutable `CompletedAttempt` containing the `exerciseId` and the original
-trace: v1 for blocks/sequences, v2 for subtraction. Repeated delivery cannot
-overwrite it. Exploration and completion show no correct/incorrect cues; the
+trace: v1 for blocks/sequences, v2 for subtraction. Each screen reports its own
+`exerciseId`, so a trace is never attached to a different exercise, and repeated
+delivery cannot overwrite it. Production code does not read the snapshot yet; it
+is an integration seam observed only by the browser test harness. Exploration and completion show no correct/incorrect cues; the
 confirmation remains **Terminaste**, and further movement is blocked.
 
 The snapshot exists only in memory. Restarting, selecting a different activity

@@ -15,8 +15,12 @@ rewritten, and no mathematical result is inferred.
 The shared controller accepts completion only when the last event is
 `finishAttempt`. Activity reducers remain responsible for trace construction,
 ordering and deep immutability; this internal boundary does not decode untrusted
-JSON. Repeated deliveries cannot replace the first snapshot. Callbacks associated
-with a different exercise cannot complete or reset the selected exercise.
+JSON. Repeated deliveries cannot replace the first snapshot. A single
+activity/example → exercise mapping drives both the rendered screen and the
+selected exercise; each screen's callbacks name the `exerciseId` they show, so a
+callback for a different exercise cannot complete or reset the selected one.
+Production code does not read the retained snapshot yet: it is an integration
+seam that only the browser test harness observes.
 
 Restarting or selecting another activity/example clears the snapshot. Selecting
 the active activity/example preserves it. Returning to a previous activity starts
@@ -48,19 +52,24 @@ server or real child data is needed. Screenshots, video and traces stay disabled
 
 ## Results — 2026-10-22
 
-- **61 unit tests passed**, including 10 new controller tests covering exercise
-  association, exact trace retention, both schema versions, immutable envelopes,
-  idempotent delivery, reset/selection lifecycle and incomplete/foreign callbacks.
+- **64 unit tests passed**, including 10 controller tests and 3 selection-mapping
+  tests (every activity/example, initial selection, rejected picker values)
+  covering exercise association, exact trace retention, both schema versions,
+  immutable envelopes, idempotent delivery, reset/selection lifecycle and
+  incomplete/foreign callbacks.
 - **73 Chromium browser tests passed**, including 21 new controller integration
   tests under React StrictMode. Coverage includes zero moves and corrections in
   every activity, blocks at 0/6/7/10, frozen snapshots, blocked later moves,
   repeated delivery, activity/example selection, reload, double clicks, Enter,
-  Space, focus and touch at 360px. Existing mouse-drag, cancellation and layout
-  regressions also pass.
+  Space, focus and touch at 360px. Re-delivery checks wait for React to commit
+  before asserting no change (verified to fail if the overwrite guard is removed),
+  and the reload check waits for the remounted controller before asserting that
+  nothing was restored. Existing mouse-drag, cancellation and layout regressions
+  also pass.
 - **Typecheck and production build passed.** Test observation and synthetic
   snapshot history live only in the browser harness, outside the production
   entry point.
-- **PR size preflight: 11/40 changed files, passed.** Whitespace check passed.
+- **PR size preflight: 16/40 changed files, passed.** Whitespace check passed.
 
 Local verification used Node 24.21.0 and the existing npm 11.19.0 executable for
 `npm run` only; no dependency installation or lockfile resolution was performed.
