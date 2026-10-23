@@ -35,8 +35,13 @@ are removed; no unverified model is installed.
 `start` rechecks the entire model checksum, rejects model symlinks, and uses
 `--pull=never`. It never downloads or switches models. It starts the fixed
 `faro-whisper-baseline` container and waits up to approximately 120 seconds for
-`/health`. Failed readiness or Ctrl+C removes its own container; exited containers
-are automatically removed. Successful startup leaves the service running until
+`/health`. Each start adds a unique invocation label before launching Docker.
+Launch failures, timeouts, Ctrl+C, invalid client output and failed readiness
+trigger cleanup filtered by the exact name, Faro ownership and invocation label,
+even when the client never returns a usable ID. Preexisting or replacement
+containers are preserved. Cleanup failure is reported explicitly if the daemon
+cannot be reached or removal fails. Exited containers are automatically removed.
+Successful startup leaves the service running until
 `stop`. Stop is idempotent and only targets the exact name and Faro ownership
 label. Stop waits up to 30 seconds for Docker's automatic removal to release the
 name before returning. Start does not replace an existing container; stop before restarting.

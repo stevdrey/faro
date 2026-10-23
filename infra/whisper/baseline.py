@@ -22,6 +22,7 @@ HERE = Path(__file__).resolve().parent
 MODEL_PATH = HERE / "models" / "ggml-base.bin"
 CONTAINER = "faro-whisper-baseline"
 OWNER_LABEL = "io.github.stevdrey.faro.baseline=whisper"
+LAUNCH_LABEL = "io.github.stevdrey.faro.launch"
 BASE_URL = "http://127.0.0.1:8085"
 START_TIMEOUT = 120
 INFERENCE_TIMEOUT = 120
@@ -114,14 +115,15 @@ def setup():
     print("Setup ready: pinned CPU image and verified base-multilingual model.")
 
 
-def docker_start_args(spec):
+def docker_start_args(spec, launch_token):
     # Docker's volume parser treats ':' as a separator even without a shell.
     if ":" in str(MODEL_PATH):
         raise BaselineError("UNSUPPORTED_MODEL_PATH")
     return [
         "docker", "run", "--detach", "--rm", "--pull=never",
         "--platform", spec["runtime"]["platform"], "--name", CONTAINER,
-        "--label", OWNER_LABEL, "--user", "65534:65534", "--read-only",
+        "--label", OWNER_LABEL, "--label", f"{LAUNCH_LABEL}={launch_token}",
+        "--user", "65534:65534", "--read-only",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--log-driver", "none", "--publish", "127.0.0.1:8085:8080",
         # Z privately labels this one public model file on SELinux hosts.
@@ -156,12 +158,15 @@ def local_json(path, *, data=None, headers=None, timeout=5):
         raise BaselineError("LOCAL_HTTP_INVALID_JSON") from None
 
 
-def owned_container():
-    identity = run_tool([
+def owned_container(launch_token=None):
+    args = [
         "docker", "container", "ls", "--all", "--no-trunc",
         "--filter", f"name=^/{CONTAINER}$", "--filter", f"label={OWNER_LABEL}",
-        "--format", "{{.ID}}",
-    ], code="DOCKER_UNAVAILABLE").strip()
+    ]
+    if launch_token is not None:
+        args.extend(["--filter", f"label={LAUNCH_LABEL}={launch_token}"])
+    args.extend(["--format", "{{.ID}}"])
+    identity = run_tool(args, code="DOCKER_UNAVAILABLE").strip()
     if identity and not re.fullmatch(r"[0-9a-f]{64}", identity):
         raise BaselineError("DOCKER_INVALID_CONTAINER_ID")
     return identity
@@ -186,15 +191,22 @@ def wait_ready(identity):
 def start():
     spec = manifest()
     verify_model(MODEL_PATH, spec["model"])
-    identity = run_tool(docker_start_args(spec), timeout=60, code="DOCKER_START_FAILED").strip()
-    if not re.fullmatch(r"[0-9a-f]{64}", identity):
-        raise BaselineError("DOCKER_INVALID_CONTAINER_ID")
+    launch_token = uuid.uuid4().hex
     try:
+        identity = run_tool(docker_start_args(spec, launch_token), timeout=60,
+                            code="DOCKER_START_FAILED").strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", identity) or owned_container(launch_token) != identity:
+            raise BaselineError("DOCKER_INVALID_CONTAINER_ID")
         wait_ready(identity)
     except (BaselineError, KeyboardInterrupt):
-        # --rm may already have removed an exited container. Never remove a replacement.
-        if owned_container() == identity:
-            run_tool(["docker", "rm", "--force", identity], code="START_FAILED_CLEANUP_FAILED")
+        # Recover by invocation label even if docker run never returned a usable ID.
+        # A preexisting/replacement service has a different token and is left alone.
+        try:
+            abandoned = owned_container(launch_token)
+            if abandoned:
+                run_tool(["docker", "rm", "--force", abandoned], code="START_FAILED_CLEANUP_FAILED")
+        except BaselineError:
+            raise BaselineError("START_FAILED_CLEANUP_FAILED") from None
         raise
     print(f"Server ready: {BASE_URL}; CPU, base-multilingual, Spanish (es).")
 

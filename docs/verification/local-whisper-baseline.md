@@ -80,6 +80,30 @@ The service was left stopped. Final inspection confirmed no managed container,
 no health response and no generated audio directories. Public image/model caches
 remain local for reuse.
 
+## PR #70 Codex review correction
+
+The review identified a container leak if the daemon created the service but
+`docker run --detach` timed out, was interrupted or returned an invalid ID before
+startup entered its cleanup block. New regression tests reproduced the leak
+against the original code before the correction.
+
+Startup now places launch, ID validation and readiness inside the same cleanup
+boundary. Each invocation applies a random launch label, and cleanup discovers
+its container by exact name, Faro owner label and launch label, independently of
+client stdout. It preserves a preexisting/replacement container from another
+invocation and reports a stable failure code if cleanup cannot complete.
+
+Verification: **35/35 offline tests passed**, with resource warnings promoted to
+errors. Coverage includes client timeout, interruption, failed exit, malformed or
+undecodable stdout, a mismatched valid ID, invocation isolation and cleanup errors.
+Real-Docker boundary injection created actual containers, then simulated loss of
+the client result by timeout, interruption and invalid stdout: all three containers
+were removed. A normal start followed by a conflicting second start preserved the
+first running service and its healthy endpoint. The subsequent synthetic smoke
+test passed (4.597 seconds of audio, 1,060 ms inference, 60 response characters),
+then stop left no managed container. This checks lifecycle recovery, not speech
+accuracy; the recognition limitations above still apply.
+
 ## Boundaries
 
 This delivers a reproducible local technical baseline, not a child-speech

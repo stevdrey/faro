@@ -129,7 +129,8 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(events, ["download", "pull"])
 
     def test_docker_args_keep_cpu_spanish_and_container_boundaries(self):
-        args = baseline.docker_start_args(self.config)
+        args = baseline.docker_start_args(self.config, "c" * 32)
+        self.assertIn("io.github.stevdrey.faro.launch=" + "c" * 32, args)
         for flag, value in (("--publish", "127.0.0.1:8085:8080"), ("--user", "65534:65534"),
                             ("--cap-drop", "ALL"), ("--log-driver", "none"),
                             ("--entrypoint", "/app/build/bin/whisper-server"),
@@ -161,9 +162,100 @@ class BaselineTests(unittest.TestCase):
     def test_start_waits_for_health(self):
         self.install_model()
         with patch.object(baseline, "run_tool", return_value=IDENTITY), \
+                patch.object(baseline, "owned_container", return_value=IDENTITY), \
                 patch.object(baseline, "wait_ready") as ready, redirect_stdout(io.StringIO()):
             baseline.start()
         ready.assert_called_once_with(IDENTITY)
+
+    def launch_client(self, outcome, *, existing=False, replacement=False, cleanup_fails=False):
+        """Simulate a daemon that creates a service before its client fails."""
+        owner_key, owner_value = baseline.OWNER_LABEL.split("=", 1)
+        launch_key = "io.github.stevdrey.faro.launch"
+        foreign_labels = {owner_key: owner_value, launch_key: "another-invocation"}
+        containers = {IDENTITY: foreign_labels} if existing else {}
+        removed = []
+
+        def client(args, **kwargs):
+            if args[:2] == ["docker", "run"]:
+                if existing:
+                    raise subprocess.CalledProcessError(125, args, stderr=b"name occupied")
+                labels = dict(args[index + 1].split("=", 1) for index, value in enumerate(args)
+                              if value == "--label")
+                containers[IDENTITY] = labels
+                if replacement:
+                    containers.clear()
+                    containers["b" * 64] = foreign_labels
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                return subprocess.CompletedProcess(args, 0, stdout=outcome)
+            if args[:3] == ["docker", "container", "ls"]:
+                labels = [args[index + 1][len("label="):].split("=", 1)
+                          for index, value in enumerate(args)
+                          if value == "--filter" and args[index + 1].startswith("label=")]
+                identities = [identity for identity, present in containers.items()
+                              if all(present.get(key) == value for key, value in labels)]
+                return subprocess.CompletedProcess(args, 0, stdout="\n".join(identities).encode())
+            if args[:3] == ["docker", "rm", "--force"]:
+                if cleanup_fails:
+                    raise subprocess.CalledProcessError(1, args, stderr=b"private diagnostic")
+                removed.append(args[3])
+                containers.pop(args[3])
+                return subprocess.CompletedProcess(args, 0, stdout=b"")
+            raise AssertionError(f"Unexpected simulated Docker command: {args[:3]}")
+
+        return client, containers, removed
+
+    def test_launch_failures_remove_service_created_before_id_returned(self):
+        self.install_model()
+        failures = [subprocess.TimeoutExpired("docker", 60), KeyboardInterrupt(),
+                    subprocess.CalledProcessError(125, "docker", stderr=b"private diagnostic"),
+                    b"invalid-container-id", b"\xff", b"b" * 64]
+        for failure in failures:
+            client, containers, removed = self.launch_client(failure)
+            expected = KeyboardInterrupt if isinstance(failure, KeyboardInterrupt) else baseline.BaselineError
+            with self.subTest(failure=type(failure).__name__), \
+                    patch.object(baseline.subprocess, "run", side_effect=client), \
+                    patch.object(baseline, "wait_ready") as ready:
+                with self.assertRaises(expected):
+                    baseline.start()
+                ready.assert_not_called()
+                self.assertEqual(containers, {})
+                self.assertEqual(removed, [IDENTITY])
+
+    def test_launch_failure_preserves_preexisting_and_replacement_services(self):
+        self.install_model()
+        for existing, replacement in ((True, False), (False, True)):
+            client, containers, removed = self.launch_client(
+                subprocess.TimeoutExpired("docker", 60), existing=existing, replacement=replacement)
+            with self.subTest(existing=existing, replacement=replacement), \
+                    patch.object(baseline.subprocess, "run", side_effect=client):
+                with self.assertRaises(baseline.BaselineError):
+                    baseline.start()
+                self.assertEqual(len(containers), 1)
+                self.assertEqual(removed, [])
+
+    def test_launch_cleanup_failure_uses_stable_error(self):
+        self.install_model()
+        client, containers, removed = self.launch_client(
+            subprocess.TimeoutExpired("docker", 60), cleanup_fails=True)
+        with patch.object(baseline.subprocess, "run", side_effect=client):
+            with self.assertRaisesRegex(baseline.BaselineError, "^START_FAILED_CLEANUP_FAILED$"):
+                baseline.start()
+
+    def test_launch_tokens_separate_successive_attempts(self):
+        self.install_model()
+        client, containers, removed = self.launch_client(IDENTITY.encode())
+        with patch.object(baseline.subprocess, "run", side_effect=client) as run, \
+                patch.object(baseline, "wait_ready"), redirect_stdout(io.StringIO()):
+            baseline.start()
+            containers.clear()  # Simulate stopping the first service before the next start.
+            baseline.start()
+        launches = [call.args[0] for call in run.call_args_list if call.args[0][:2] == ["docker", "run"]]
+        tokens = [next(arg for arg in args if arg.startswith("io.github.stevdrey.faro.launch="))
+                  for args in launches]
+        self.assertEqual(len(tokens), 2)
+        self.assertNotEqual(tokens[0], tokens[1])
+        self.assertEqual(removed, [])
 
     def test_start_cleanup_on_timeout_or_interrupt(self):
         self.install_model()
@@ -176,16 +268,14 @@ class BaselineTests(unittest.TestCase):
                     baseline.start()
                 self.assertEqual(run.call_args.args[0], ["docker", "rm", "--force", IDENTITY])
 
-    def test_start_does_not_remove_replacement_or_already_removed_container(self):
+    def test_start_does_not_remove_already_removed_container(self):
         self.install_model()
-        for remaining in ("", "b" * 64):
-            with self.subTest(remaining=remaining), \
-                    patch.object(baseline, "run_tool", return_value=IDENTITY) as run, \
-                    patch.object(baseline, "owned_container", return_value=remaining), \
-                    patch.object(baseline, "wait_ready", side_effect=baseline.BaselineError("EXITED")):
-                with self.assertRaises(baseline.BaselineError):
-                    baseline.start()
-                self.assertEqual(run.call_count, 1)
+        with patch.object(baseline, "run_tool", return_value=IDENTITY) as run, \
+                patch.object(baseline, "owned_container", side_effect=[IDENTITY, ""]), \
+                patch.object(baseline, "wait_ready", side_effect=baseline.BaselineError("EXITED")):
+            with self.assertRaises(baseline.BaselineError):
+                baseline.start()
+            self.assertEqual(run.call_count, 1)
 
     def test_readiness_retries_loading_then_accepts_health(self):
         with patch.object(baseline, "run_tool", return_value="true"), \
