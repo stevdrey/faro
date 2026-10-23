@@ -14,11 +14,11 @@ The future MVP 0.1 includes three exercise families (missing addend, sequences, 
 
 - `apps/web`: **React 19.3.1 + TypeScript 7.0.2 + Vite 8.3.4**, with separate child/adult features in later issues.
 - `services/api`: **Java 27 + Spring Boot 4.1.1 + Gradle 9.8.1**, modular monolith; modules `exercises`, `sessions`, `speech`, `assessment`, `feedback`, and `pilot`.
-- `infra/dev`: local run scripts; `infra/whisper`: future local ASR instructions, no model weights.
+- `infra/dev`: local run scripts; `infra/whisper`: standalone Docker CPU ASR baseline, no committed model weights.
 - `tools`: future reproducible ASR benchmarks.
 - `docs`: English architecture, design decisions, research protocol, supply-chain policy, and 41-issue backlog.
 
-Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback; no real ASR runtime or audio endpoint is implemented yet. Optional explanation interpretation will use a separate port. The first runtime candidate is local whisper.cpp; Moonshine and Vosk are benchmark candidates, not prerequisites. The future `LOCAL_ONLY` privacy policy must fail closed with no cloud fallback. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
+Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback; the application has no real ASR adapter or audio endpoint yet. A separately managed [whisper.cpp CPU baseline](infra/whisper/README.md) supports local synthetic Spanish WAV tests, with a digest-pinned image and checksum-verified multilingual base model. Optional explanation interpretation will use a separate port. Moonshine and Vosk are benchmark candidates, not prerequisites. The future `LOCAL_ONLY` privacy policy must fail closed with no cloud fallback. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
 
 **Compatibility note:** Gradle 9.8.1 supports Java 27, but Spring Boot 4.1.1 currently documents Java compatibility through Java 26 only. CI explicitly tests Java 27; this pairing remains experimental pending officially documented support.
 
