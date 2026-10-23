@@ -22,6 +22,7 @@ SPEC = importlib.util.spec_from_file_location("baseline", MODULE_PATH)
 baseline = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(baseline)
 IDENTITY = "a" * 64
+REAL_MANIFEST = baseline.manifest
 
 
 class BaselineTests(unittest.TestCase):
@@ -41,6 +42,12 @@ class BaselineTests(unittest.TestCase):
     def install_model(self):
         self.model.parent.mkdir(parents=True)
         self.model.write_bytes(self.weights)
+
+    def fast_clock(self):
+        """Advance monotonic time one second per read and skip real sleeps."""
+        ticks = iter(range(10_000))
+        patch.object(baseline.time, "monotonic", side_effect=lambda: next(ticks)).start()
+        return patch.object(baseline.time, "sleep").start()
 
     def fake_download(self, payload):
         opener = Mock()
@@ -64,6 +71,17 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(self.model.read_bytes(), self.weights)
         self.assertEqual(self.model.stat().st_mode & 0o777, 0o644)
         self.assertEqual(list(self.model.parent.glob("*.part")), [])
+
+    def test_download_honors_environment_proxies_and_has_no_total_deadline(self):
+        with self.fake_download(self.weights) as build, \
+                patch.object(baseline.time, "monotonic", side_effect=AssertionError("deadline")):
+            baseline.download_model(self.model, self.config["model"])
+        handlers = build.call_args.args
+        self.assertFalse(any(isinstance(handler, baseline.urllib.request.ProxyHandler)
+                             for handler in handlers))
+        self.assertIsInstance(handlers[0], baseline.RedirectGuard)
+        self.assertTrue(handlers[0].allow_https)
+        self.assertEqual(build.return_value.open.call_args.kwargs["timeout"], 60)
 
     def test_incomplete_corrupt_and_oversize_downloads_are_removed(self):
         for payload in (b"short", b"x" * len(self.weights), self.weights * 2):
@@ -113,10 +131,12 @@ class BaselineTests(unittest.TestCase):
 
     def test_setup_reuses_verified_model_and_pulls_exact_image(self):
         self.install_model()
+        self.model.chmod(0o600)
         with patch.object(baseline, "download_model") as download, \
                 patch.object(baseline, "run_tool") as run, redirect_stdout(io.StringIO()):
             baseline.setup()
         download.assert_not_called()
+        self.assertEqual(self.model.stat().st_mode & 0o777, 0o644)
         self.assertEqual(run.call_args.args[0], ["docker", "pull", "--platform", "linux/amd64",
                                                self.config["runtime"]["image"]])
 
@@ -167,13 +187,16 @@ class BaselineTests(unittest.TestCase):
             baseline.start()
         ready.assert_called_once_with(IDENTITY)
 
-    def launch_client(self, outcome, *, existing=False, replacement=False, cleanup_fails=False):
+    def launch_client(self, outcome, *, existing=False, replacement=False, cleanup_fails=False,
+                      late=False):
         """Simulate a daemon that creates a service before its client fails."""
         owner_key, owner_value = baseline.OWNER_LABEL.split("=", 1)
         launch_key = "io.github.stevdrey.faro.launch"
         foreign_labels = {owner_key: owner_value, launch_key: "another-invocation"}
         containers = {IDENTITY: foreign_labels} if existing else {}
         removed = []
+        pending = []
+        listings = []
 
         def client(args, **kwargs):
             if args[:2] == ["docker", "run"]:
@@ -181,6 +204,9 @@ class BaselineTests(unittest.TestCase):
                     raise subprocess.CalledProcessError(125, args, stderr=b"name occupied")
                 labels = dict(args[index + 1].split("=", 1) for index, value in enumerate(args)
                               if value == "--label")
+                if late:
+                    pending.append(labels)
+                    raise outcome
                 containers[IDENTITY] = labels
                 if replacement:
                     containers.clear()
@@ -189,6 +215,10 @@ class BaselineTests(unittest.TestCase):
                     raise outcome
                 return subprocess.CompletedProcess(args, 0, stdout=outcome)
             if args[:3] == ["docker", "container", "ls"]:
+                if pending:
+                    listings.append(args)
+                    if len(listings) >= 3:  # The daemon finishes the create after two empty lists.
+                        containers[IDENTITY] = pending.pop()
                 labels = [args[index + 1][len("label="):].split("=", 1)
                           for index, value in enumerate(args)
                           if value == "--filter" and args[index + 1].startswith("label=")]
@@ -207,6 +237,7 @@ class BaselineTests(unittest.TestCase):
 
     def test_launch_failures_remove_service_created_before_id_returned(self):
         self.install_model()
+        self.fast_clock()
         failures = [subprocess.TimeoutExpired("docker", 60), KeyboardInterrupt(),
                     subprocess.CalledProcessError(125, "docker", stderr=b"private diagnostic"),
                     b"invalid-container-id", b"\xff", b"b" * 64]
@@ -222,8 +253,41 @@ class BaselineTests(unittest.TestCase):
                 self.assertEqual(containers, {})
                 self.assertEqual(removed, [IDENTITY])
 
+    def test_cleanup_waits_for_container_created_after_client_was_killed(self):
+        self.install_model()
+        sleep = self.fast_clock()
+        for failure in (subprocess.TimeoutExpired("docker", 60), KeyboardInterrupt()):
+            client, containers, removed = self.launch_client(failure, late=True)
+            with self.subTest(failure=type(failure).__name__), \
+                    patch.object(baseline.subprocess, "run", side_effect=client):
+                with self.assertRaises((baseline.BaselineError, KeyboardInterrupt)):
+                    baseline.start()
+                self.assertEqual(containers, {})
+                self.assertEqual(removed, [IDENTITY])
+        self.assertTrue(sleep.called)
+
+    def test_cleanup_grace_is_bounded_when_nothing_was_created(self):
+        self.install_model()
+        self.fast_clock()
+        client, _, removed = self.launch_client(subprocess.TimeoutExpired("docker", 60))
+        listings = []
+
+        def no_create(args, **kwargs):
+            if args[:2] == ["docker", "run"]:
+                raise subprocess.TimeoutExpired("docker", 60)
+            listings.append(args)
+            return client(args, **kwargs)
+
+        with patch.object(baseline.subprocess, "run", side_effect=no_create):
+            with self.assertRaisesRegex(baseline.BaselineError, "^DOCKER_START_FAILED$"):
+                baseline.start()
+        self.assertGreater(len(listings), 1)
+        self.assertLessEqual(len(listings), baseline.CLEANUP_GRACE + 1)
+        self.assertEqual(removed, [])
+
     def test_launch_failure_preserves_preexisting_and_replacement_services(self):
         self.install_model()
+        self.fast_clock()
         for existing, replacement in ((True, False), (False, True)):
             client, containers, removed = self.launch_client(
                 subprocess.TimeoutExpired("docker", 60), existing=existing, replacement=replacement)
@@ -236,6 +300,7 @@ class BaselineTests(unittest.TestCase):
 
     def test_launch_cleanup_failure_uses_stable_error(self):
         self.install_model()
+        self.fast_clock()
         client, containers, removed = self.launch_client(
             subprocess.TimeoutExpired("docker", 60), cleanup_fails=True)
         with patch.object(baseline.subprocess, "run", side_effect=client):
@@ -285,6 +350,33 @@ class BaselineTests(unittest.TestCase):
             baseline.wait_ready(IDENTITY)
         self.assertEqual(http.call_count, 2)
 
+    def test_readiness_distinguishes_removed_container_from_docker_failure(self):
+        inspect_failed = baseline.BaselineError("DOCKER_UNAVAILABLE")
+        for present, code in (("", "^CONTAINER_EXITED$"), (IDENTITY, "^DOCKER_UNAVAILABLE$")):
+            with self.subTest(present=bool(present)), \
+                    patch.object(baseline, "run_tool", side_effect=inspect_failed), \
+                    patch.object(baseline, "owned_container", return_value=present):
+                with self.assertRaisesRegex(baseline.BaselineError, code):
+                    baseline.wait_ready(IDENTITY)
+        with patch.object(baseline, "run_tool", side_effect=inspect_failed), \
+                patch.object(baseline, "owned_container",
+                             side_effect=baseline.BaselineError("DOCKER_UNAVAILABLE")):
+            with self.assertRaisesRegex(baseline.BaselineError, "^DOCKER_UNAVAILABLE$"):
+                baseline.wait_ready(IDENTITY)
+
+    def test_readiness_calls_never_outlive_the_start_deadline(self):
+        with patch.object(baseline.time, "monotonic", side_effect=[0, 119.5]), \
+                patch.object(baseline, "run_tool", return_value="true") as run, \
+                patch.object(baseline, "local_json", return_value={"status": "ok"}) as http:
+            baseline.wait_ready(IDENTITY)
+        self.assertEqual(run.call_args.kwargs["timeout"], 1)
+        self.assertEqual(http.call_args.kwargs["timeout"], 0.5)
+        with patch.object(baseline.time, "monotonic", side_effect=[0, 100]), \
+                patch.object(baseline, "run_tool", return_value="true") as run, \
+                patch.object(baseline, "local_json", return_value={"status": "ok"}):
+            baseline.wait_ready(IDENTITY)
+        self.assertEqual(run.call_args.kwargs["timeout"], 20)
+
     def test_readiness_detects_exit_and_deadline(self):
         with patch.object(baseline, "run_tool", return_value="false"):
             with self.assertRaisesRegex(baseline.BaselineError, "CONTAINER_EXITED"):
@@ -293,31 +385,26 @@ class BaselineTests(unittest.TestCase):
             with self.assertRaisesRegex(baseline.BaselineError, "SERVER_START_TIMEOUT"):
                 baseline.wait_ready(IDENTITY)
 
-    def test_stop_is_owned_and_idempotent(self):
-        with patch.object(baseline, "run_tool", side_effect=[IDENTITY, "", ""]) as run, \
-                redirect_stdout(io.StringIO()):
+    def test_stop_is_owned_idempotent_and_forcibly_removes_any_state(self):
+        with patch.object(baseline, "run_tool", side_effect=[IDENTITY, ""]) as run, \
+                patch.object(baseline.time, "sleep") as sleep, redirect_stdout(io.StringIO()):
             baseline.stop()
         listing = run.call_args_list[0].args[0]
         self.assertIn("name=^/faro-whisper-baseline$", listing)
         self.assertIn("label=" + baseline.OWNER_LABEL, listing)
-        self.assertEqual(run.call_args_list[1].args[0], ["docker", "stop", "--time", "10", IDENTITY])
+        self.assertIn("--all", listing)  # Created/exited containers are also removed.
+        self.assertEqual(run.call_args_list[1].args[0], ["docker", "rm", "--force", IDENTITY])
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_not_called()
         with patch.object(baseline, "run_tool", return_value="") as run, \
                 redirect_stdout(io.StringIO()):
             baseline.stop()
         self.assertEqual(run.call_count, 1)
 
-    def test_stop_waits_until_docker_releases_container_name(self):
-        with patch.object(baseline, "owned_container", side_effect=[IDENTITY, IDENTITY, ""]), \
-                patch.object(baseline, "run_tool"), patch.object(baseline.time, "sleep") as sleep, \
-                redirect_stdout(io.StringIO()):
-            baseline.stop()
-        sleep.assert_called_once_with(0.25)
-
-    def test_stop_removal_deadline_is_not_reported_as_success(self):
-        with patch.object(baseline, "owned_container", return_value=IDENTITY), \
-                patch.object(baseline, "run_tool"), \
-                patch.object(baseline.time, "monotonic", side_effect=[0, 31]):
-            with self.assertRaisesRegex(baseline.BaselineError, "DOCKER_REMOVE_TIMEOUT"):
+    def test_stop_removal_failure_is_not_reported_as_success(self):
+        with patch.object(baseline, "run_tool",
+                          side_effect=[IDENTITY, baseline.BaselineError("DOCKER_STOP_FAILED")]):
+            with self.assertRaisesRegex(baseline.BaselineError, "^DOCKER_STOP_FAILED$"):
                 baseline.stop()
 
     def test_docker_unavailable_is_not_treated_as_already_stopped(self):
@@ -347,13 +434,16 @@ class BaselineTests(unittest.TestCase):
         with patch.object(baseline.urllib.request, "build_opener", return_value=opener) as build:
             self.assertEqual(baseline.local_json("/health"), {"status": "ok"})
         self.assertEqual(build.call_args.args[0].proxies, {})
-        self.assertIsInstance(build.call_args.args[1], baseline.NoRedirect)
+        self.assertIsInstance(build.call_args.args[1], baseline.RedirectGuard)
+        self.assertFalse(build.call_args.args[1].allow_https)
         self.assertEqual(opener.open.call_args.args[0].full_url, "http://127.0.0.1:8085/health")
         for code in (301, 302, 303, 307, 308):
             with self.subTest(code=code), self.assertRaisesRegex(baseline.BaselineError, "REDIRECT_REJECTED"):
-                baseline.NoRedirect().redirect_request(None, None, code, "", {}, "https://remote.invalid")
+                baseline.RedirectGuard("LOCAL_HTTP_REDIRECT_REJECTED").redirect_request(
+                    None, None, code, "", {}, "https://remote.invalid")
         with self.assertRaisesRegex(baseline.BaselineError, "DOWNLOAD_INSECURE_REDIRECT"):
-            baseline.HttpsRedirect().redirect_request(None, None, 302, "", {}, "http://remote.invalid")
+            baseline.RedirectGuard("DOWNLOAD_INSECURE_REDIRECT", allow_https=True).redirect_request(
+                None, None, 302, "", {}, "http://remote.invalid")
 
     def test_http_failure_cases_do_not_expose_response_body(self):
         failures = [
@@ -479,6 +569,28 @@ class BaselineTests(unittest.TestCase):
                 patch.object(baseline, "local_json", return_value={"status": "loading model"}):
             with self.assertRaisesRegex(baseline.BaselineError, "SERVER_NOT_READY"):
                 baseline.smoke_test()
+
+    def test_invalid_manifest_uses_stable_code(self):
+        valid = json.loads((MODULE_PATH.parent / "artifacts.json").read_text())
+        missing_key = copy.deepcopy(valid)
+        del missing_key["model"]["sha256"]
+        cases = {"invalid json": "{\"runtime\": {},}", "not object": "[]",
+                 "missing section": json.dumps({"runtime": valid["runtime"]}),
+                 "missing key": json.dumps(missing_key), "absent file": None}
+        for name, content in cases.items():
+            directory = self.directory / name
+            directory.mkdir()
+            if content is not None:
+                (directory / "artifacts.json").write_text(content)
+            with self.subTest(case=name), patch.object(baseline, "HERE", directory):
+                with self.assertRaisesRegex(baseline.BaselineError, "^MANIFEST_INVALID$"):
+                    REAL_MANIFEST()
+        with patch.object(baseline, "HERE", self.directory / "invalid json"), \
+                patch.object(baseline, "manifest", REAL_MANIFEST), \
+                patch.object(baseline.sys, "argv", ["baseline.py", "start"]), \
+                redirect_stderr(io.StringIO()) as output:
+            self.assertEqual(baseline.main(), 1)
+        self.assertEqual(output.getvalue(), "Baseline failed: MANIFEST_INVALID\n")
 
     def test_cli_prints_only_stable_failure(self):
         with patch.object(baseline.sys, "argv", ["baseline.py", "smoke-test"]), \

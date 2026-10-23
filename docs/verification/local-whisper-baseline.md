@@ -104,6 +104,34 @@ test passed (4.597 seconds of audio, 1,060 ms inference, 60 response characters)
 then stop left no managed container. This checks lifecycle recovery, not speech
 accuracy; the recognition limitations above still apply.
 
+## PR #70 Claude review corrections
+
+A second review found ten lifecycle, download, error-reporting and CI gaps; all
+were corrected:
+
+- `stop` force-removes the managed container in any state. Previously a container
+  left in Docker's `created` state was never auto-removed, so stop always timed out.
+- When the launch client is killed before returning, cleanup polls its invocation
+  label for up to 10 seconds, so a create that lands late is still removed.
+- Reused weights are set to mode 0644 so the unprivileged container can read them.
+- The model download has no total deadline (the 60-second socket timeout bounds
+  stalls) and honors `HTTPS_PROXY`/`NO_PROXY`; local inference still bypasses proxies.
+- Readiness reports `DOCKER_UNAVAILABLE` for daemon failures instead of
+  `CONTAINER_EXITED`, and no Docker or HTTP call outlives the 120-second deadline.
+- A malformed or incomplete manifest fails with `MANIFEST_INVALID`, not a traceback.
+- A single redirect guard and container-ID pattern replace duplicated code.
+- The CI job pins Python 3.11, the documented minimum, through `actions/setup-python`
+  v7.0.0 by full commit SHA (the one-day-old v7.1.0 was deliberately not adopted).
+
+Verification on **2026-10-23**: **40/40 offline tests passed** with resource
+warnings promoted to errors, on local Python 3.14 (3.11 runs only in CI).
+Whitespace checks passed; PR-size preflight passed at **11/40 changed files**.
+A real `setup → start → smoke-test → stop → stop` cycle passed: setup reused the
+verified cached model, smoke test 4.597 seconds of audio, 898 ms inference,
+60 response characters. A container created with the baseline's labels but never
+started (`created` state) was removed by `stop`, which exited 0 and left no managed
+container. The remote CI result, including Python 3.11, is not yet verified.
+
 ## Boundaries
 
 This delivers a reproducible local technical baseline, not a child-speech

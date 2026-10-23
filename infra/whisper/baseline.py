@@ -25,32 +25,47 @@ OWNER_LABEL = "io.github.stevdrey.faro.baseline=whisper"
 LAUNCH_LABEL = "io.github.stevdrey.faro.launch"
 BASE_URL = "http://127.0.0.1:8085"
 START_TIMEOUT = 120
+CLEANUP_GRACE = 10
 INFERENCE_TIMEOUT = 120
 MAX_RESPONSE_BYTES = 1024 * 1024
+CONTAINER_ID = re.compile(r"[0-9a-f]{64}")
+MANIFEST_KEYS = {
+    "runtime": ("image", "platform"),
+    "model": ("id", "url", "sha256", "size_bytes"),
+    "sample": ("text", "voice", "words_per_minute", "pitch"),
+}
 
 
 class BaselineError(Exception):
     """Only stable first-party codes are printed; never vendor output or response bodies."""
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
+class RedirectGuard(urllib.request.HTTPRedirectHandler):
+    """Reject every redirect, or only non-HTTPS ones, with a stable code."""
+
+    def __init__(self, code, *, allow_https=False):
+        super().__init__()
+        self.code = code
+        self.allow_https = allow_https
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if self.allow_https and newurl.startswith("https://"):
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
         if fp is not None:
             fp.close()
-        raise BaselineError("LOCAL_HTTP_REDIRECT_REJECTED")
-
-
-class HttpsRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not newurl.startswith("https://"):
-            if fp is not None:
-                fp.close()
-            raise BaselineError("DOWNLOAD_INSECURE_REDIRECT")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        raise BaselineError(self.code)
 
 
 def manifest():
-    return json.loads((HERE / "artifacts.json").read_text(encoding="utf-8"))
+    try:
+        config = json.loads((HERE / "artifacts.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise BaselineError("MANIFEST_INVALID") from None
+    if not isinstance(config, dict) or not all(
+            isinstance(config.get(section), dict) and all(key in config[section] for key in keys)
+            for section, keys in MANIFEST_KEYS.items()):
+        raise BaselineError("MANIFEST_INVALID")
+    return config
 
 
 def run_tool(args, *, timeout=30, code="TOOL_FAILED"):
@@ -78,17 +93,18 @@ def download_model(path, spec):
     """Stage alongside the destination; never publish incomplete/unverified weights."""
     path.parent.mkdir(parents=True, exist_ok=True)
     staged = None
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), HttpsRedirect())
+    # Environment proxies apply to this public download; the 60 s socket timeout bounds stalls.
+    opener = urllib.request.build_opener(
+        RedirectGuard("DOWNLOAD_INSECURE_REDIRECT", allow_https=True))
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".part", delete=False) as output:
             staged = Path(output.name)
             with opener.open(spec["url"], timeout=60) as response:
                 received = 0
-                deadline = time.monotonic() + 300
                 while chunk := response.read(1024 * 1024):
                     received += len(chunk)
-                    if received > spec["size_bytes"] or time.monotonic() > deadline:
-                        raise BaselineError("DOWNLOAD_SIZE_OR_TIME_LIMIT")
+                    if received > spec["size_bytes"]:
+                        raise BaselineError("DOWNLOAD_SIZE_LIMIT")
                     output.write(chunk)
         verify_model(staged, spec)
         # The unprivileged container needs read access; weights are public, not audio.
@@ -108,6 +124,8 @@ def setup():
     spec = manifest()
     if MODEL_PATH.exists() or MODEL_PATH.is_symlink():
         verify_model(MODEL_PATH, spec["model"])
+        # Reused weights may predate setup or have a restrictive umask; the container needs read.
+        MODEL_PATH.chmod(0o644)
     else:
         download_model(MODEL_PATH, spec["model"])
     run_tool(["docker", "pull", "--platform", spec["runtime"]["platform"],
@@ -138,7 +156,8 @@ def docker_start_args(spec, launch_token):
 
 def local_json(path, *, data=None, headers=None, timeout=5):
     # Ignore HTTP_PROXY/HTTPS_PROXY and reject redirects, including for POST audio.
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                                         RedirectGuard("LOCAL_HTTP_REDIRECT_REJECTED"))
     request = urllib.request.Request(BASE_URL + path, data=data, headers=headers or {})
     try:
         with opener.open(request, timeout=timeout) as response:
@@ -167,20 +186,26 @@ def owned_container(launch_token=None):
         args.extend(["--filter", f"label={LAUNCH_LABEL}={launch_token}"])
     args.extend(["--format", "{{.ID}}"])
     identity = run_tool(args, code="DOCKER_UNAVAILABLE").strip()
-    if identity and not re.fullmatch(r"[0-9a-f]{64}", identity):
+    if identity and not CONTAINER_ID.fullmatch(identity):
         raise BaselineError("DOCKER_INVALID_CONTAINER_ID")
     return identity
 
 
 def wait_ready(identity):
     deadline = time.monotonic() + START_TIMEOUT
-    while time.monotonic() < deadline:
-        running = run_tool(["docker", "inspect", "--format", "{{.State.Running}}", identity],
-                           code="CONTAINER_EXITED").strip()
+    while (remaining := deadline - time.monotonic()) > 0:
+        try:
+            running = run_tool(["docker", "inspect", "--format", "{{.State.Running}}", identity],
+                               timeout=max(1, remaining), code="DOCKER_UNAVAILABLE").strip()
+        except BaselineError:
+            # An auto-removed container is gone; anything else is a daemon/client failure.
+            if owned_container() != identity:
+                raise BaselineError("CONTAINER_EXITED") from None
+            raise
         if running != "true":
             raise BaselineError("CONTAINER_EXITED")
         try:
-            if local_json("/health", timeout=1).get("status") == "ok":
+            if local_json("/health", timeout=min(1, remaining)).get("status") == "ok":
                 return
         except BaselineError:
             pass
@@ -188,21 +213,33 @@ def wait_ready(identity):
     raise BaselineError("SERVER_START_TIMEOUT")
 
 
+def abandoned_container(launch_token, *, launched):
+    """Find this invocation's container, allowing a killed client's create request to land."""
+    deadline = time.monotonic() + (0 if launched else CLEANUP_GRACE)
+    while True:
+        identity = owned_container(launch_token)
+        if identity or time.monotonic() >= deadline:
+            return identity
+        time.sleep(0.5)
+
+
 def start():
     spec = manifest()
     verify_model(MODEL_PATH, spec["model"])
     launch_token = uuid.uuid4().hex
+    launched = False
     try:
         identity = run_tool(docker_start_args(spec, launch_token), timeout=60,
                             code="DOCKER_START_FAILED").strip()
-        if not re.fullmatch(r"[0-9a-f]{64}", identity) or owned_container(launch_token) != identity:
+        launched = True
+        if not CONTAINER_ID.fullmatch(identity) or owned_container(launch_token) != identity:
             raise BaselineError("DOCKER_INVALID_CONTAINER_ID")
         wait_ready(identity)
     except (BaselineError, KeyboardInterrupt):
         # Recover by invocation label even if docker run never returned a usable ID.
         # A preexisting/replacement service has a different token and is left alone.
         try:
-            abandoned = owned_container(launch_token)
+            abandoned = abandoned_container(launch_token, launched=launched)
             if abandoned:
                 run_tool(["docker", "rm", "--force", abandoned], code="START_FAILED_CLEANUP_FAILED")
         except BaselineError:
@@ -214,14 +251,9 @@ def start():
 def stop():
     identity = owned_container()
     if identity:
-        run_tool(["docker", "stop", "--time", "10", identity], timeout=30,
-                 code="DOCKER_STOP_FAILED")
-        # Docker can acknowledge stop before --rm has released the container name.
-        deadline = time.monotonic() + 30
-        while owned_container() == identity:
-            if time.monotonic() >= deadline:
-                raise BaselineError("DOCKER_REMOVE_TIMEOUT")
-            time.sleep(0.25)
+        # Forced removal is synchronous and also covers created/exited containers that
+        # --rm never auto-removes.
+        run_tool(["docker", "rm", "--force", identity], timeout=30, code="DOCKER_STOP_FAILED")
     print("Baseline stopped (or already absent).")
 
 

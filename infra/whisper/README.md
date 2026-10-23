@@ -28,9 +28,12 @@ python3 infra/whisper/baseline.py stop
 `setup` stages the exact model revision in [artifacts.json](artifacts.json), checks
 its byte length and SHA-256, and atomically installs it under ignored
 `infra/whisper/models/`. It then pulls the official CPU image by immutable digest.
-Repeated setup verifies and reuses existing weights. Corrupt existing weights
+Repeated setup verifies and reuses existing weights, and makes them readable
+(mode 0644) by the container's unprivileged user. Corrupt existing weights
 are rejected: remove that file explicitly and rerun setup. Interrupted downloads
-are removed; no unverified model is installed.
+are removed; no unverified model is installed. The model download honors
+`HTTPS_PROXY`/`NO_PROXY` and rejects non-HTTPS redirects. It has no total time limit;
+a 60-second socket timeout aborts stalled transfers.
 
 `start` rechecks the entire model checksum, rejects model symlinks, and uses
 `--pull=never`. It never downloads or switches models. It starts the fixed
@@ -38,13 +41,18 @@ are removed; no unverified model is installed.
 `/health`. Each start adds a unique invocation label before launching Docker.
 Launch failures, timeouts, Ctrl+C, invalid client output and failed readiness
 trigger cleanup filtered by the exact name, Faro ownership and invocation label,
-even when the client never returns a usable ID. Preexisting or replacement
+even when the client never returns a usable ID. If the client was killed before
+returning, cleanup keeps polling for up to 10 seconds in case the daemon is still
+creating the container; a launch rejected outright (for example, a name conflict) can
+therefore take up to 10 seconds longer to report. Preexisting or replacement
 containers are preserved. Cleanup failure is reported explicitly if the daemon
 cannot be reached or removal fails. Exited containers are automatically removed.
-Successful startup leaves the service running until
+A Docker failure while polling readiness is reported as `DOCKER_UNAVAILABLE`, not as
+an exited container. Successful startup leaves the service running until
 `stop`. Stop is idempotent and only targets the exact name and Faro ownership
-label. Stop waits up to 30 seconds for Docker's automatic removal to release the
-name before returning. Start does not replace an existing container; stop before restarting.
+label. It force-removes the container in any state (running, created or exited) and
+returns once Docker has released the name. Start does not replace an existing
+container; stop before restarting.
 
 The container runs as UID/GID 65534, with capabilities dropped, no new privileges,
 a read-only root filesystem, one read-only model mount and a 64 MiB `/tmp` tmpfs.
@@ -76,7 +84,8 @@ curl --noproxy '*' --fail --silent --show-error --max-time 120 \
 
 This optional curl command displays the transcript. Do not save its response or
 use real child audio. Tooling bypasses environment HTTP proxies, rejects local
-HTTP redirects and has no configurable remote inference URL.
+HTTP redirects and has no configurable remote inference URL. Only the explicit
+`setup` model download uses environment proxies.
 
 ## Privacy and cleanup
 
@@ -128,7 +137,8 @@ The general model inventory and redistribution review remain FARO-041's work.
 python3 -m unittest discover -s infra/whisper/tests -v
 ```
 
-The `whisper-baseline` CI job runs offline tests using runner-provided Python.
+The `whisper-baseline` CI job runs offline tests on Python 3.11, the documented minimum,
+installed by a digest-pinned `actions/setup-python`.
 It never pulls the runtime, downloads weights or provisions voice tools. See
 the [verification summary](../../docs/verification/local-whisper-baseline.md)
 for actual acceptance results.
@@ -137,12 +147,13 @@ for actual acceptance results.
 |---|---|
 | `MODEL_MISSING_OR_SYMLINK` | Run setup; remove an unexpected model symlink explicitly. |
 | `MODEL_SIZE_MISMATCH` / `MODEL_CHECKSUM_MISMATCH` | Remove the corrupt cached model and rerun setup. Never bypass verification. |
-| `MODEL_DOWNLOAD_FAILED` / `IMAGE_PULL_FAILED` | Check Internet access and the local Docker daemon; retry setup. Partial model files are removed. |
+| `MANIFEST_INVALID` | Restore `artifacts.json` from Git; manifest updates need review. |
+| `MODEL_DOWNLOAD_FAILED` / `DOWNLOAD_SIZE_LIMIT` / `IMAGE_PULL_FAILED` | Check Internet access, any required `HTTPS_PROXY` and the local Docker daemon; retry setup. Partial model files are removed. |
 | `DOCKER_UNAVAILABLE` / `DOCKER_START_FAILED` | Check daemon permissions/context, the cached image, existing container name and port 8085. No automatic sudo or alternate provider. |
 | `CONTAINER_EXITED` / `SERVER_START_TIMEOUT` | Check amd64 support and available CPU/RAM. Arguments are tied to the pinned image. No raw logs are retained. |
 | `BASELINE_NOT_RUNNING` / `SERVER_NOT_READY` | Start the managed baseline and wait for readiness. |
 | `SYNTHESIS_FAILED` / `NORMALIZATION_FAILED` | Install eSpeak NG with `es-419` and FFmpeg. |
 | `LOCAL_HTTP_*` / `INFERENCE_EMPTY_OR_INVALID_TEXT` | Check local health and retry the synthetic test. Failure bodies are redacted. |
-| `START_FAILED_CLEANUP_FAILED` / `DOCKER_STOP_FAILED` / `DOCKER_REMOVE_TIMEOUT` | Restore daemon access and stop the managed baseline. |
+| `START_FAILED_CLEANUP_FAILED` / `DOCKER_STOP_FAILED` | Restore daemon access and run `stop`; it removes the managed container in any state. |
 
 API reference: [whisper-server at the pinned revision](https://github.com/ggml-org/whisper.cpp/blob/231638a0717b7822784297e5980965ffcec05810/examples/server/README.md).
