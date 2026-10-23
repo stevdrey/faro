@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Exercise } from '../../contracts/exercise.ts'
+import { demoExercise } from '../missing-addend/exercise.ts'
+import { ascendingExercise, descendingExercise } from '../sequences/exercise.ts'
+import { subtractionExercise } from '../subtraction/exercise.ts'
 
 /** Fixed UI speech only: never derive prompts from a child's actions or transcript. */
 export const clips = {
@@ -14,19 +17,26 @@ export const clips = {
 
 export type ClipId = keyof typeof clips
 export function clipSource(id: ClipId, base = '/'): string {
-  return `${base}audio/${id}.wav`
+  return `${base}audio/${id}.ogg`
 }
 
-/** The fixed recordings name operands; unsupported exercises must not play misleading numbers. */
+const sameTerms = (left: readonly number[], right: readonly number[]) =>
+  left.length === right.length && left.every((term, index) => term === right[index])
+
+/** The fixed recordings name the fixtures' operands; other exercises must not play misleading numbers. */
 export function exerciseClip(exercise: Exercise): ClipId | undefined {
   switch (exercise.type) {
-    case 'MISSING_ADDEND': return exercise.operands.total === 18 && exercise.operands.knownAddend === 12 ? 'blocks' : undefined
-    case 'SUBTRACTION': return exercise.operands.minuend === 53 && exercise.operands.subtrahend === 28 ? 'subtraction' : undefined
+    case 'MISSING_ADDEND': {
+      const { knownAddend, total } = demoExercise.operands
+      return exercise.operands.total === total && exercise.operands.knownAddend === knownAddend ? 'blocks' : undefined
+    }
+    case 'SUBTRACTION': {
+      const { minuend, subtrahend } = subtractionExercise.operands
+      return exercise.operands.minuend === minuend && exercise.operands.subtrahend === subtrahend ? 'subtraction' : undefined
+    }
     case 'SEQUENCE': {
-      const { terms } = exercise.operands
-      if (terms.length !== 2) return undefined
-      if (terms[0] === 30 && terms[1] === 28) return 'descending'
-      return terms[0] === 10 && terms[1] === 12 ? 'ascending' : undefined
+      if (sameTerms(exercise.operands.terms, descendingExercise.operands.terms)) return 'descending'
+      return sameTerms(exercise.operands.terms, ascendingExercise.operands.terms) ? 'ascending' : undefined
     }
   }
 }

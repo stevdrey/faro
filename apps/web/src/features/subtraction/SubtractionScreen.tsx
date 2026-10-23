@@ -6,8 +6,7 @@ import { preventRepeatedActivation, useCompletionNotice } from '../shared/comple
 import { usePieceDrag } from '../shared/piece-drag.ts'
 import { canOperate, emptySubtractionAttempt, subtractionAttemptReducer } from './attempt.ts'
 import type { Operation, PieceMove } from './attempt.ts'
-import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
-import { exerciseClip } from '../guidance/clips.ts'
+import { useExerciseGuidance } from '../guidance/SpokenGuidance.tsx'
 
 interface Props {
   exercise: SubtractionExercise
@@ -18,8 +17,7 @@ interface Props {
 /** Mount with the exercise ID as key when changing exercises. */
 export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
   const [state, dispatch] = useReducer(subtractionAttemptReducer, exercise.operands.minuend, emptySubtractionAttempt)
-  const [guidanceAttempt, restartGuidance] = useReducer((value: number) => value + 1, 0)
-  const clip = state.completed ? 'next' : exerciseClip(exercise)
+  const { guidance, restartGuidance } = useExerciseGuidance(exercise, state.completed)
   const availableArea = useRef<HTMLDivElement>(null)
   const removedArea = useRef<HTMLDivElement>(null)
   const resetButton = useRef<HTMLButtonElement>(null)
@@ -77,7 +75,7 @@ export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
       <h1 id="page-title">¿Cuántos quedan?</h1>
       <p>Mové decenas y unidades. Podés cambiar de idea.</p>
     </div>
-    {clip && <SpokenGuidance key={`${guidanceAttempt}-${clip}`} clip={clip} />}
+    {guidance}
     <div className="equation subtraction-equation" role="group" aria-label="Explorá la resta" data-testid="subtraction-equation">
       <span>{exercise.operands.minuend}</span><span>−</span><span>{exercise.operands.subtrahend}</span><span>=</span>
       <span className="missing-symbol" role="img" aria-label="Cantidad por descubrir">□</span>

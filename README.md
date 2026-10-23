@@ -166,7 +166,9 @@ the current clip. A missing clip or blocked playback offers a short retry messag
 and leaves visual exploration and completion available. Guidance records no
 semantic actions and does not change the completed attempt.
 
-Seven fixed WAV assets are served by the web server alone. The accepted first
+Seven fixed Ogg Opus assets (about 20–37 KB each) are served by the web server
+alone. Browsers without Opus support, such as Safari/iOS before 18.4, show the retry
+message while visual exploration remains available. The accepted first
 version uses offline-generated synthetic Latin American Spanish with Costa Rican
 wording; its accent is not a validated Costa Rican voice. It needs a supervised
 listening/usability review before pilot use. There is no runtime TTS, microphone

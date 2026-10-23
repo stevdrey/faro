@@ -7,7 +7,7 @@ and explaining how to manipulate the visuals and finish with **Listo**. After
 completion, a separate neutral clip explains restarting or choosing another
 activity, regardless of the child's answer. No clip supplies the solution.
 
-**Escuchar guía** (accessible name: **Escuchar o repetir guía**) starts or restarts
+**Escuchar guía** (its accessible name matches the visible label) starts or restarts
 a clip from zero; the square **Detener guía** control stops and rewinds it. Both support keyboard and touch and have 48 px minimum
 height. Guidance is opt-in, without autoplay on entry, completion or restart.
 **Ver instrucciones** offers the exact transcript. Existing concise screen
@@ -23,9 +23,9 @@ different numbers. Existing v1/v2 action traces and completion focus are retaine
 
 ## Assets and boundaries
 
-Seven committed, mono PCM16 WAVs last approximately 7–13 seconds: four exercise
+Seven committed, mono 24 kbps Ogg Opus files (about 20–37 KB) last approximately 7–13 seconds: four exercise
 clips, one next-action clip and two future recording prompts. They were generated
-locally using eSpeak NG 1.52.0, the built-in `es-419` formant voice and Faro-authored
+locally using eSpeak NG 1.52.0, the built-in `es-419` formant voice, FFmpeg 8.1.3 `libopus` and Faro-authored
 Costa Rican Spanish wording. See the [asset manifest and provenance](../../apps/web/public/audio/README.md).
 The generator is an explicit developer command, never an install/build hook or
 runtime dependency. No npm dependency was added or changed.
@@ -50,7 +50,7 @@ node .agents/scripts/pr-size-preflight.mjs
 ```
 
 Unit tests check fixture-to-clip selection, unsupported operands, exact
-transcript/manifest agreement, SHA-256 hashes, valid nonempty PCM WAV data and the
+transcript/manifest agreement, SHA-256 hashes, valid mono Ogg Opus pages, a 64 KiB size bound and the
 15-second clip limit. Browser tests cover replay/stop, keyboard repeat, touch
 layout, natural completion events, changing contexts, hidden-page cancellation,
 late playback promises, rejected playback, media errors and retries. They also
@@ -87,6 +87,24 @@ with retries still disabled. The complete browser suite with `CI=true` passed
 **88/88**; unit tests passed **67/67**, typecheck/build passed, and PR-size
 preflight passed at **22/40 files**. No dependencies, assets, domain contracts, or API
 code changed in this correction.
+
+## PR #69 code-review corrections
+
+A follow-up review led to these changes:
+- **Detener guía** now uses `aria-disabled`, so keyboard focus stays on it after it stops the clip.
+- Pauses from outside the page (media keys, OS interruptions, a lost headset) return the controls to idle; resuming from outside shows playback again.
+- The button's accessible name now matches its visible label.
+- Only failures are announced through the live region, so a screen reader does not talk over the clip.
+- Assets moved from 3.3 MB of WAV to about 200 KB of Ogg Opus.
+- Clip selection compares against the exercise fixtures instead of copying their numbers.
+- The screens share `useExerciseGuidance`.
+- The generator uses one settings object, stages all clips before replacing them, and produces identical checksums on reruns.
+
+Local results on 2026-10-22: unit **67/67**, browser suite with `CI=true` **90/90**,
+the guidance spec repeated five times with retries disabled **80/80**, typecheck/build
+passed, and PR-size preflight passed at **22/40 files**. Opus playback was verified
+in Chromium only; Safari/iOS before 18.4 cannot decode it and falls back to the retry
+message.
 
 ## Manual acceptance and limits
 
