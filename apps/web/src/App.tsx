@@ -6,31 +6,50 @@ import { ascendingExercise, descendingExercise } from './features/sequences/exer
 import { SequenceScreen } from './features/sequences/SequenceScreen.tsx'
 import { subtractionExercise } from './features/subtraction/exercise.ts'
 import { SubtractionScreen } from './features/subtraction/SubtractionScreen.tsx'
+import { useAttemptCompletion } from './features/shared/use-attempt-completion.ts'
+import type { AttemptCompletionController } from './features/shared/use-attempt-completion.ts'
 
-// Local integration seams for FARO-008. Nothing is posted, logged or persisted.
-const ignoreCompletion = () => {}
-const ignoreReset = () => {}
+type Activity = 'blocks' | 'sequences' | 'subtraction'
+type Example = 'descending' | 'ascending'
 
 export function App() {
-  const [activity, setActivity] = useState('blocks')
-  const [example, setExample] = useState('descending')
+  const completion = useAttemptCompletion(demoExercise.exerciseId)
+  return <DemoActivities completion={completion} />
+}
+
+/** Activity selection and completion selection change together, without resetting an active choice. */
+export function DemoActivities({ completion }: { completion: AttemptCompletionController }) {
+  const [activity, setActivity] = useState<Activity>('blocks')
+  const [example, setExample] = useState<Example>('descending')
   const sequence = example === 'descending' ? descendingExercise : ascendingExercise
+
+  function selectActivity(next: Activity) {
+    completion.selectExercise(next === 'blocks' ? demoExercise.exerciseId
+      : next === 'subtraction' ? subtractionExercise.exerciseId : sequence.exerciseId)
+    setActivity(next)
+  }
+
+  function selectExample(next: Example) {
+    completion.selectExercise(next === 'descending' ? descendingExercise.exerciseId : ascendingExercise.exerciseId)
+    setExample(next)
+  }
+
   return <>
     <nav className="activity-picker" aria-label="Elegir actividad">
-      <button type="button" aria-pressed={activity === 'blocks'} onClick={() => setActivity('blocks')}>Bloques</button>
-      <button type="button" aria-pressed={activity === 'sequences'} onClick={() => setActivity('sequences')}>Secuencias</button>
-      <button type="button" aria-pressed={activity === 'subtraction'} onClick={() => setActivity('subtraction')}>Restas</button>
+      <button type="button" aria-pressed={activity === 'blocks'} onClick={() => selectActivity('blocks')}>Bloques</button>
+      <button type="button" aria-pressed={activity === 'sequences'} onClick={() => selectActivity('sequences')}>Secuencias</button>
+      <button type="button" aria-pressed={activity === 'subtraction'} onClick={() => selectActivity('subtraction')}>Restas</button>
     </nav>
     {activity === 'blocks'
-      ? <MissingAddendScreen exercise={demoExercise} onComplete={ignoreCompletion} onReset={ignoreReset} />
+      ? <MissingAddendScreen exercise={demoExercise} onComplete={completion.onComplete} onReset={completion.onReset} />
       : activity === 'subtraction'
-        ? <SubtractionScreen exercise={subtractionExercise} onComplete={ignoreCompletion} onReset={ignoreReset} />
+        ? <SubtractionScreen exercise={subtractionExercise} onComplete={completion.onComplete} onReset={completion.onReset} />
       : <>
-        <div className="example-picker"><label>Elegí una secuencia <select value={example} onChange={event => setExample(event.target.value)}>
+        <div className="example-picker"><label>Elegí una secuencia <select value={example} onChange={event => selectExample(event.target.value as Example)}>
           <option value="descending">30, 28, □</option>
           <option value="ascending">10, 12, □</option>
         </select></label><p>Cambiar de ejemplo borra tus saltos.</p></div>
-        <SequenceScreen key={sequence.exerciseId} exercise={sequence} onComplete={ignoreCompletion} onReset={ignoreReset} />
+        <SequenceScreen key={sequence.exerciseId} exercise={sequence} onComplete={completion.onComplete} onReset={completion.onReset} />
       </>}
   </>
 }

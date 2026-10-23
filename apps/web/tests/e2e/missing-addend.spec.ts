@@ -24,7 +24,7 @@ async function expectCount(page: Page, count: number) {
   await expect(page.getByRole('heading', { name: `Vos agregás ${count}`, exact: true })).toBeVisible()
 }
 
-test('the real app works without an API, stores no attempt, and supports keyboard corrections', async ({ page }) => {
+test('the real app works without an API, writes no storage, and supports keyboard corrections', async ({ page }) => {
   const requests: string[] = []
   page.on('request', request => { if (/\/api\/|\/actuator\//.test(request.url())) requests.push(request.url()) })
   await page.goto('/')

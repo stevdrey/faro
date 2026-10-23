@@ -33,6 +33,17 @@ The v1 action contract exposes five immutable domain variants: `PlaceBlock`, `Re
 
 `Attempt(id, exerciseId, sessionId, actionTrace, completionState)` remains a future concept; sessions, persistence, and attempt endpoints are not implemented by the action contract.
 
+FARO-008 implements a narrower browser-local `CompletedAttempt(exerciseId, trace)`.
+A shared completion controller retains the deeply frozen trace supplied by the
+active screen's reducer after an explicit `Listo` activation. It accepts only a
+terminal `finishAttempt`, keeps the first delivery, and clears it on restart or
+exercise selection changes. Re-selecting the current exercise is a no-op.
+Blocks/sequences retain v1 and subtraction retains v2, without conversion. This
+is one transient snapshot, with no history, session identity, endpoint, storage,
+assessment or provider dependency. Reloading/unmounting forgets it. The browser
+does not yet send this trace to the backend; that step of the planned flow below
+remains future work.
+
 FARO-007 adds a separate sealed `ExchangeEvent` hierarchy (`DecomposeTen`,
 `ComposeTen`) through the opt-in [v2 action contract](../contracts/actions/v2/README.md).
 `ActionEvent` keeps its five original variants; both extend `TraceEvent`, and an

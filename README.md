@@ -77,8 +77,8 @@ in memory: no attempt endpoint, storage, telemetry, audio, or grading is involve
 The activity works with the web server alone; it does not require the API.
 Refreshing or closing the page also discards the attempt.
 
-Full attempt integration belongs to FARO-008, spoken instructions to FARO-009,
-and mathematical evaluation to later engine/assessment issues. This demonstration
+The shared local completion controller is described below; spoken instructions
+belong to FARO-009 and mathematical evaluation to later engine/assessment issues. This demonstration
 does not authorize an unsupervised or public pilot.
 
 Web verification uses Node's built-in test runner for the pure reducer and pinned
@@ -130,6 +130,24 @@ movements use the opt-in [v2 action contract](contracts/actions/v2/README.md),
 replayable in Java and TypeScript. Blocks and sequences retain v1.
 The demo adds no API, storage, telemetry, audio, model provider or dependencies.
 See [FARO-007 verification](docs/verification/subtraction-tens-and-ones.md).
+
+## Explicit attempt completion (FARO-008 / issue #25)
+
+One click or tap on **Listo** explicitly completes the active exercise, including
+an attempt with no movements. Blocks, sequences and subtraction all deliver one
+deeply frozen semantic trace ending in `finishAttempt`. The application retains
+one immutable `CompletedAttempt` containing the `exerciseId` and the original
+trace: v1 for blocks/sequences, v2 for subtraction. Repeated delivery cannot
+overwrite it. Exploration and completion show no correct/incorrect cues; the
+confirmation remains **Terminaste**, and further movement is blocked.
+
+The snapshot exists only in memory. Restarting, selecting a different activity
+or sequence example, reloading, or closing the page discards it. Selecting the
+already active activity/example preserves the attempt. Only the chosen sequence
+example is remembered while switching activities within the open page; its
+actions are discarded. No history, API request, browser storage, audio,
+assessment, telemetry or model integration is added. See
+[FARO-008 verification](docs/verification/explicit-attempt-completion.md).
 
 ## Supply-chain safety
 
