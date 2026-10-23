@@ -2,13 +2,9 @@
 package io.github.stevdrey.faro.sessions;
 
 import java.time.Instant;
-import java.util.Objects;
 
 /** Semantic actions, independent of UI coordinates, transport, and assessment rules. */
-public sealed interface ActionEvent {
-    int step();
-    Instant occurredAt();
-
+public sealed interface ActionEvent extends TraceEvent {
     record PlaceBlock(int value, int step, Instant occurredAt) implements ActionEvent {
         public PlaceBlock {
             validateMovement(value, step, occurredAt);
@@ -35,7 +31,7 @@ public sealed interface ActionEvent {
 
     record FinishAttempt(int step, Instant occurredAt) implements ActionEvent {
         public FinishAttempt {
-            validateMetadata(step, occurredAt);
+            TraceEvent.validateMetadata(step, occurredAt);
         }
     }
 
@@ -43,13 +39,6 @@ public sealed interface ActionEvent {
         if (value <= 0) {
             throw new IllegalArgumentException("Movement value must be positive");
         }
-        validateMetadata(step, occurredAt);
-    }
-
-    private static void validateMetadata(int step, Instant occurredAt) {
-        if (step <= 0) {
-            throw new IllegalArgumentException("Event step must be positive");
-        }
-        Objects.requireNonNull(occurredAt, "occurredAt");
+        TraceEvent.validateMetadata(step, occurredAt);
     }
 }

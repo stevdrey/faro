@@ -7,14 +7,6 @@ import java.util.List;
 public record ActionTrace(List<ActionEvent> events) {
     public ActionTrace {
         events = List.copyOf(events);
-        for (int index = 0; index < events.size(); index++) {
-            ActionEvent event = events.get(index);
-            if (event.step() != index + 1) {
-                throw new IllegalArgumentException("Event steps must be consecutive from 1 in received order");
-            }
-            if (event instanceof ActionEvent.FinishAttempt && index != events.size() - 1) {
-                throw new IllegalArgumentException("finishAttempt must be the last event");
-            }
-        }
+        TraceEvent.validateOrder(events);
     }
 }

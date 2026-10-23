@@ -2,6 +2,10 @@
 
 FARO-003 / [issue #14](https://github.com/stevdrey/faro/issues/14) defines semantic interaction events and deterministic replay. It introduces no HTTP endpoint, persistence, UI, or assessment rules.
 
+FARO-007 adds an opt-in [version 2](../v2/README.md) for explicit tens/units
+exchanges. V1 remains unchanged and rejects exchange events and v2 envelopes.
+Exchanges live in a separate Java `ExchangeEvent` hierarchy that v1 types cannot hold.
+
 ## Payload
 
 | Field | JSON type | Meaning |

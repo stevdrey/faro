@@ -75,7 +75,7 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 
-.activity-picker { max-width: 900px; margin: 0 auto; padding: 16px 32px 0; display: flex; gap: 10px; }
+.activity-picker { max-width: 900px; margin: 0 auto; padding: 16px 32px 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .activity-picker button, .restart-button, .jump-controls button { border: 1px solid #9b947d; border-radius: 14px; background: #fffef9; color: #284e43; min-height: 48px; padding: 10px 18px; font-weight: 650; }
 .activity-picker button[aria-pressed="true"] { background: #284e43; color: #fffef9; border-color: #284e43; }
 .example-picker { max-width: 900px; margin: 18px auto 0; padding: 0 32px; }
@@ -112,4 +112,28 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
   .jump-controls p { font-size: 14px; }
   .sequence-footer { gap: 8px; }
   .sequence-footer button { padding: 10px 12px; font-size: 14px; }
+}
+
+.subtraction-trays { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.subtraction-tray { min-width: 0; padding: 16px; border: 1px solid #b5a98a; background: #fffef9; border-radius: 20px; }
+.subtraction-tray:first-child { background: #ebf0e6; }
+.subtraction-tray h2 { display: flex; justify-content: space-between; align-items: center; font-size: 18px; }
+.subtraction-tray > p { color: #52675c; margin: 8px 0; }
+.piece-area { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 10px; min-height: 240px; padding: 12px 0; }
+.math-piece { display: inline-flex; height: 48px; flex-shrink: 0; border: 1px solid #9d5a25; border-radius: 7px; background: #eab56e; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
+.math-piece > span { flex: 1; border-right: 1px solid #9d5a25; box-shadow: inset 0 -4px 0 #bd793638; }
+.math-piece > span:last-child { border: 0; }
+.ten-piece { width: 200px; }
+.unit-piece { width: 48px; }
+.activity[data-completed="true"] .math-piece { cursor: default; touch-action: auto; }
+.tray-empty { align-self: center; color: #52675c; font-size: 14px; }
+.piece-controls, .exchange-controls { display: flex; flex-wrap: wrap; gap: 10px; }
+.piece-controls button, .exchange-controls button { min-height: 48px; border: 1px solid #9b947d; border-radius: 12px; padding: 10px 12px; color: #284e43; background: #f5efdf; font-weight: 650; }
+.exchange-controls { margin-top: 20px; }
+.subtraction-status { color: #52675c; }
+.subtraction-equation { gap: clamp(8px, 2.5vw, 24px); }
+@media (max-width: 700px) {
+  .subtraction-trays { grid-template-columns: 1fr; }
+  .piece-area { min-height: 140px; }
+  .exchange-controls button { width: 100%; }
 }

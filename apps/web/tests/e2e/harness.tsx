@@ -6,11 +6,14 @@ import { MissingAddendScreen } from '../../src/features/missing-addend/MissingAd
 import { SequenceScreen } from '../../src/features/sequences/SequenceScreen.tsx'
 import { ascendingExercise, descendingExercise } from '../../src/features/sequences/exercise.ts'
 import type { MissingAddendExercise } from '../../src/contracts/exercise.ts'
+import type { ActionTracePayloadV2 } from '../../src/contracts/action-v2.ts'
+import { SubtractionScreen } from '../../src/features/subtraction/SubtractionScreen.tsx'
+import { subtractionExercise } from '../../src/features/subtraction/exercise.ts'
 import type { ActionTracePayload } from '../../src/contracts/action.ts'
 import '../../src/styles.css'
 
 export interface TestEvidence {
-  completions: ActionTracePayload[]
+  completions: (ActionTracePayload | ActionTracePayloadV2)[]
   frozen: boolean
   resets: number
 }
@@ -21,7 +24,7 @@ const parameters = new URLSearchParams(location.search)
 const presentation = parameters.get('presentation')
 const exercise: MissingAddendExercise = presentation === 'TOTAL_EQUALS_KNOWN_PLUS_MISSING' || presentation === 'MISSING_PLUS_KNOWN_EQUALS_TOTAL'
   ? { ...demoExercise, presentation } : demoExercise
-function onComplete(trace: ActionTracePayload) {
+function onComplete(trace: ActionTracePayload | ActionTracePayloadV2) {
   window.screenEvidence.completions.push(trace)
   window.screenEvidence.frozen = Object.isFrozen(trace) && Object.isFrozen(trace.events) && trace.events.every(Object.isFrozen)
 }
@@ -29,5 +32,7 @@ function onReset() { window.screenEvidence.resets++ }
 createRoot(document.getElementById('app')!).render(<StrictMode>
   {parameters.get('activity') === 'sequences'
     ? <SequenceScreen exercise={parameters.get('example') === 'ascending' ? ascendingExercise : descendingExercise} onComplete={onComplete} onReset={onReset} />
+    : parameters.get('activity') === 'subtraction'
+      ? <SubtractionScreen exercise={subtractionExercise} onComplete={onComplete} onReset={onReset} />
     : <MissingAddendScreen exercise={exercise} onComplete={onComplete} onReset={onReset} />}
 </StrictMode>)

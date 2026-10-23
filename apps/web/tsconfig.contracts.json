@@ -8,6 +8,7 @@
     "tests/contracts/**/*.ts",
     "../../contracts/exercises/v1/fixtures/*.json",
     "../../contracts/actions/v1/fixtures/*.json",
+    "../../contracts/actions/v2/fixtures/*.json",
     "../../contracts/assessments/v1/fixtures/*.json"
   ]
 }
