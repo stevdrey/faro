@@ -17,6 +17,18 @@ Install with `npm --prefix apps/web ci --ignore-scripts`, **never `npm install` 
 
 **Important:** no install script does **not** mean no malicious code execution: a compromised dependency can run at build time, when imported by Vite, or in the browser. Keep review, lockfile integrity, minimal dependency count, and independent security checks.
 
+## Standalone ASR baseline
+
+FARO-010's [local whisper.cpp tooling](../infra/whisper/README.md) uses a reviewed
+official CPU image pinned by digest and a multilingual model pinned by immutable
+repository revision, byte length and SHA-256. The committed artifact manifest
+records provenance, license sources and intended use independently for runtime
+and weights. Setup is explicit; startup refuses missing/corrupt weights and uses
+`--pull=never`. No model/voice downloads occur in CI or dependency install hooks.
+Review manifest updates and rerun real local inference; the upstream image's OS,
+libraries and bundled utilities keep their separate licenses. FARO-041 remains
+responsible for the general artifact inventory.
+
 ## Java/Gradle
 
 Use Java 27 and Gradle 9.8.1; 9.8.1 addresses important security issues from the initial 9.8 release. Spring Boot 4.1.1 is the current stable baseline, but its official documented Java compatibility currently extends through Java 26: **Java 27 is a test-required compatibility risk until Spring confirms support**.

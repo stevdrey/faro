@@ -76,6 +76,11 @@ faro:
 
 Choosing `whisper-cpp` today fails explicitly because its adapter is not installed. No audio endpoint is exposed. This selection mechanism is **not** the FARO-040 backend network safety gate.
 
+FARO-010 provides a separately managed [local whisper.cpp baseline](../infra/whisper/README.md)
+for synthetic Spanish WAV tests through the runtime's own `/inference` endpoint.
+It does not register an application adapter, change the configuration above, or
+implement FARO-040. Application audio normalization and integration remain FARO-012.
+
 ## Future configuration extensions (illustrative, not active)
 
 ```yaml

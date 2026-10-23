@@ -97,3 +97,7 @@ logs/
 # Private benchmark outputs
 tools/benchmark-results/private/
 infra/whisper/cache/
+
+# Standalone Python developer-tool caches
+__pycache__/
+*.pyc

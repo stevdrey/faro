@@ -1,0 +1,34 @@
+{
+  "runtime": {
+    "image": "ghcr.io/ggml-org/whisper.cpp@sha256:80eaf700df7e5c46ec7482f8123c88edaefefda74b36c1191a7c85c116e8e399",
+    "platform": "linux/amd64",
+    "source": "https://github.com/ggml-org/whisper.cpp",
+    "source_revision": "231638a0717b7822784297e5980965ffcec05810",
+    "source_revision_basis": "Official OCI index sha256:7a4e5f481192899f6c3853ff181ea6347b219ca2f388e1d84870b84ad80f6b7f BuildKit provenance vcs:revision",
+    "license": "MIT",
+    "license_source": "https://github.com/ggml-org/whisper.cpp/blob/231638a0717b7822784297e5980965ffcec05810/LICENSE",
+    "note": "The digest pins the official CPU image, not just the runtime. Ubuntu and bundled utilities have separate licenses; the image also contains unused base.en weights."
+  },
+  "model": {
+    "id": "base-multilingual",
+    "file": "ggml-base.bin",
+    "repository": "ggerganov/whisper.cpp",
+    "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.bin",
+    "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+    "size_bytes": 147951465,
+    "license": "MIT",
+    "license_source": "https://huggingface.co/ggerganov/whisper.cpp/blob/5359861c739e955e79d9a303bcbc70fb988958b1/README.md",
+    "original_license_source": "https://github.com/openai/whisper/blob/main/LICENSE",
+    "intended_use": "Local adult-only technical baseline using synthetic Spanish; not a child-speech accuracy evaluation."
+  },
+  "sample": {
+    "text": "Tengo doce bloques y agrego seis para llegar a dieciocho.",
+    "voice": "es-419",
+    "words_per_minute": 140,
+    "pitch": 50,
+    "text_license": "CC0-1.0",
+    "generator": "eSpeak NG built-in formant voice (GPL-3.0-or-later); no downloaded voice",
+    "conversion": "FFmpeg PCM16 little-endian, mono, 16000 Hz; FFmpeg license depends on the installed build"
+  }
+}
