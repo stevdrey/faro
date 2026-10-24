@@ -10,11 +10,18 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties("faro.speech")
 public record SpeechProperties(String provider,
                                @DefaultValue("es-CR") String language,
-                               @DefaultValue("8s") Duration timeout) {
+                               @DefaultValue("8s") Duration timeout,
+                               String endpoint) {
     public ProviderConfig toConfig() {
         if (provider == null || provider.isBlank()) {
             throw new IllegalStateException("faro.speech.provider must be set; use the dev profile for the fake");
         }
-        return new ProviderConfig(provider, language, timeout);
+        return new ProviderConfig(provider, language, timeout, LocalOnlyPolicy.endpoint(endpoint));
+    }
+
+    @Override
+    public String toString() {
+        return "SpeechProperties[provider=" + provider + ", language=" + language + ", timeout=" + timeout
+                + ", endpoint=<redacted>]";
     }
 }

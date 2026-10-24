@@ -5,6 +5,14 @@ package io.github.stevdrey.faro.speech;
 public interface AsrProvider {
     String id();
 
-    /** Adapters must honor the configured inference timeout and normalize failures to SpeechFailure. */
+    /**
+     * Explicit opt-in, checked before create. Unknown/remote adapters are denied by default.
+     * Local adapters must use only the validated config endpoint (or run in process), never follow
+     * redirects, honor the timeout, and never download models or forward audio on failure.
+     * Constructors/registration must not perform I/O; all initialization belongs in create.
+     */
+    default boolean localProcessing() { return false; }
+
+    /** Adapters must normalize failures to SpeechFailure without retaining private data. */
     SpeechRecognizer create(ProviderConfig config) throws SpeechFailure;
 }

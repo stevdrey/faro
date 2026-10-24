@@ -10,9 +10,11 @@ management:
     health:
       show-details: never
 
-# No audio endpoint or real ASR transport. FARO-040 must enforce LOCAL_ONLY before integration.
+# No audio endpoint or real ASR transport. LOCAL_ONLY is enforced before adapter creation and each request.
 # faro.speech.provider has no default; startup fails until a deployment or the dev profile selects one.
 faro:
+  privacy:
+    policy: LOCAL_ONLY
   speech:
     language: es-CR
     timeout: 8s

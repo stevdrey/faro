@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Enforces the contract once for every adapter: capabilities, configured language, inference deadline and
+ * Enforces the contract once for every adapter: LOCAL_ONLY, capabilities, configured language, inference deadline and
  * normalized failures. Vendor exceptions are dropped, never attached.
  */
 final class GuardedSpeechRecognizer implements SpeechRecognizer {
@@ -32,7 +32,14 @@ final class GuardedSpeechRecognizer implements SpeechRecognizer {
     @Override
     public SpeechHypothesis transcribe(SpeechRequest request) throws SpeechFailure {
         Objects.requireNonNull(request, "request");
-        if (!request.languageTag().equals(language) || !delegate.capabilities().supports(request)) {
+        AsrCapabilities current;
+        try {
+            current = capabilities();
+        } catch (RuntimeException vendorFailure) {
+            throw new SpeechFailure(SpeechFailure.Code.PROVIDER_ERROR);
+        }
+        LocalOnlyPolicy.requireLocal(current);
+        if (!request.languageTag().equals(language) || !current.supports(request)) {
             throw new SpeechFailure(SpeechFailure.Code.INCOMPATIBLE_REQUEST);
         }
         var task = new FutureTask<>(() -> delegate.transcribe(request));

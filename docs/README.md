@@ -11,6 +11,7 @@ All project documentation and GitHub work items are written in English. The user
 | [Assessment and evidence](04-assessment-and-evidence.md) | Types, rules, required regression scenarios |
 | [Assessment result contract v1](../contracts/assessments/v1/README.md) | Independent math/evidence/next-step states, minimal provenance, strict JSON binding, and shared fixtures |
 | [Provider-independent models](05-provider-independence.md) | ASR ports, configuration, local-only policy, optional future LLM |
+| [LOCAL_ONLY verification](verification/local-only-policy.md) | FARO-040 backend admission, endpoint rules, cloud veto and no-fallback regression coverage |
 | [ASR research](research/asr-alternatives-es.md) | Baseline, candidates, benchmark methodology, license cautions |
 | [Local whisper.cpp baseline](../infra/whisper/README.md) | FARO-010 standalone CPU server, pinned artifacts, synthetic Spanish smoke test, licenses and cleanup |
 | [Local whisper.cpp verification](verification/local-whisper-baseline.md) | FARO-010 offline tests and real local inference results |
