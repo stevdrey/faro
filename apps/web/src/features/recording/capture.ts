@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 export const MAX_RECORDING_MS = 30_000
+/** A mute shorter than this (an OS interruption or notification) does not discard the recording. */
+export const MUTE_GRACE_MS = 1_500
 export interface RecordedClip {
   readonly blob: Blob
   readonly mimeType: string
@@ -33,6 +35,15 @@ const browserEnvironment: CaptureEnvironment = {
   },
 }
 const available = (): CaptureState => ({ phase: 'available', elapsedMs: 0, clip: null })
+export const isInFlight = (phase: CaptureState['phase']) =>
+  phase === 'requesting' || phase === 'recording' || phase === 'finalizing'
+/** Maps only the exception name, so private vendor text never reaches the UI. */
+function classify(error: unknown): CaptureError {
+  const name = error instanceof DOMException ? error.name : ''
+  return name === 'NotAllowedError' || name === 'SecurityError' ? 'permission'
+    : name === 'NotFoundError' || name === 'NotReadableError' ? 'device'
+    : name === 'NotSupportedError' ? 'unsupported' : 'capture'
+}
 function stopTracks(stream: MediaStream) {
   for (const track of stream.getTracks()) {
     try { track.stop() } catch { /* Release the remaining tracks too. */ }
@@ -69,7 +80,7 @@ export class CaptureController {
   }
   stop() { this.stopRecording?.() }
   async start() {
-    if (['requesting', 'recording', 'finalizing'].includes(this.state.phase)) return
+    if (isInFlight(this.state.phase)) return
     this.release()
     const generation = ++this.generation
     const current = () => generation === this.generation
@@ -83,10 +94,7 @@ export class CaptureController {
     try {
       stream = await this.environment.getStream()
     } catch (error) {
-      const name = error instanceof DOMException ? error.name : ''
-      fail(name === 'NotAllowedError' || name === 'SecurityError' ? 'permission'
-        : name === 'NotFoundError' || name === 'NotReadableError' ? 'device'
-        : name === 'NotSupportedError' ? 'unsupported' : 'capture')
+      fail(classify(error))
       return
     }
     if (!current()) { stopTracks(stream); return }
@@ -96,10 +104,13 @@ export class CaptureController {
     let startedAt = 0
     let cancelTick = () => {}
     let cancelLimit = () => {}
+    let cancelMute = () => {}
+    const muted = new Set<EventTarget>()
     const cleanups: (() => void)[] = []
     this.cleanup = () => {
       cancelTick()
       cancelLimit()
+      cancelMute()
       for (const remove of cleanups) remove()
       try { if (recorder && recorder.state !== 'inactive') recorder.stop() } catch { /* Already failed. */ }
       stopTracks(stream)
@@ -114,7 +125,17 @@ export class CaptureController {
       }
       for (const track of stream.getAudioTracks()) {
         listen(track, 'ended', () => { if (current() && this.state.phase === 'recording') fail('interrupted') })
-        listen(track, 'mute', () => { if (current() && this.state.phase === 'recording') fail('interrupted') })
+        listen(track, 'mute', () => {
+          if (!current() || this.state.phase !== 'recording') return
+          if (!muted.size) cancelMute = this.environment.schedule(() => {
+            if (current() && this.state.phase === 'recording' && muted.size) fail('interrupted')
+          }, MUTE_GRACE_MS)
+          muted.add(track)
+        })
+        listen(track, 'unmute', () => {
+          muted.delete(track)
+          if (!muted.size) { cancelMute(); cancelMute = () => {} }
+        })
       }
       listen(recorder, 'error', () => fail('capture'))
       listen(recorder, 'dataavailable', event => {
@@ -137,6 +158,7 @@ export class CaptureController {
         durationMs = Math.min(MAX_RECORDING_MS, Math.max(0, this.environment.now() - startedAt))
         cancelTick()
         cancelLimit()
+        cancelMute()
         this.show({ phase: 'finalizing', elapsedMs: durationMs, clip: null })
         try { recorder!.stop() } catch { fail('capture') }
         // stop() queues the final data/stop events; hardware access ends immediately.
@@ -150,10 +172,11 @@ export class CaptureController {
         const elapsedMs = Math.max(0, this.environment.now() - startedAt)
         if (elapsedMs >= MAX_RECORDING_MS) { this.stop(); return }
         this.show({ phase: 'recording', elapsedMs, clip: null })
-        cancelTick = this.environment.schedule(tick, 250)
+        // The timer shows whole seconds, so emit only at each second boundary.
+        cancelTick = this.environment.schedule(tick, 1000 - (elapsedMs % 1000))
       }
-      cancelTick = this.environment.schedule(tick, 250)
+      cancelTick = this.environment.schedule(tick, 1000)
       cancelLimit = this.environment.schedule(() => this.stop(), MAX_RECORDING_MS)
-    } catch { fail('capture') }
+    } catch (error) { fail(classify(error)) }
   }
 }

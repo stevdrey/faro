@@ -176,6 +176,33 @@ test('guidance and clip playback exclude one another; capture silences and block
   await control(page, 'Cancelar').click()
 })
 
+test('a media pause while clip playback is still starting is not reported as a failure', async ({ page }) => {
+  await mockCapture(page)
+  await page.goto(harness)
+  await finishAndAuthorize(page)
+  await clip(page)
+  await page.evaluate(() => {
+    HTMLMediaElement.prototype.play = function () {
+      window.captureMedia.plays++
+      window.captureMedia.active.add(this)
+      return new Promise((_, reject) => {
+        Object.assign(window, { rejectPlay: () => reject(new DOMException('Synthetic private detail', 'AbortError')) })
+      })
+    }
+  })
+  await control(page, 'Escuchar mi grabación').click()
+  await expect(panel(page).getByText('Escuchando tu grabación…')).toBeVisible()
+  await page.evaluate(() => {
+    // A media key or lost headset pauses before play() settles; the browser then aborts play().
+    const player = document.querySelector<HTMLAudioElement>('.recording-playback audio')!
+    window.captureMedia.active.delete(player)
+    player.dispatchEvent(new Event('pause'))
+    ;(window as unknown as { rejectPlay: () => void }).rejectPlay()
+  })
+  await expect(control(page, 'Detener reproducción')).toHaveAttribute('aria-disabled', 'true')
+  await expect(panel(page).getByText('No se pudo escuchar', { exact: false })).toHaveCount(0)
+})
+
 for (const phase of ['recording', 'playback']) for (const change of ['reset', 'activity', 'example', 'hidden', 'pagehide', 'unmount']) {
   test(`${change} during ${phase} discards capture/clip, stops playback and never resumes automatically`, async ({ page }) => {
     await mockCapture(page)

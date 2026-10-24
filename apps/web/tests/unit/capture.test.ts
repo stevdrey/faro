@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { CaptureController, MAX_RECORDING_MS } from '../../src/features/recording/capture.ts'
+import { CaptureController, MAX_RECORDING_MS, MUTE_GRACE_MS } from '../../src/features/recording/capture.ts'
 import { AudioCoordinator } from '../../src/features/recording/audio-coordinator.ts'
 
 class Track extends EventTarget {
@@ -176,6 +176,11 @@ for (const failure of ['construction', 'start', 'stop', 'error', 'ended', 'mute'
     if (failure === 'empty') f.recorder.finish('')
     if (failure === 'error') f.recorder.dispatchEvent(new Event('error'))
     if (failure === 'ended' || failure === 'mute') f.tracks[0].dispatchEvent(new Event(failure))
+    if (failure === 'mute') {
+      f.advance(MUTE_GRACE_MS - 1)
+      assert.equal(f.controller.state.phase, 'recording')
+      f.advance(1)
+    }
     if (failure === 'unexpected-stop') f.recorder.dispatchEvent(new Event('stop'))
     assert.equal(f.controller.state.phase, 'error')
     assert.equal(f.controller.state.clip, null)
@@ -185,6 +190,45 @@ for (const failure of ['construction', 'start', 'stop', 'error', 'ended', 'mute'
     assert.equal(f.controller.state, state)
   })
 }
+
+test('a mute that recovers within the grace period keeps recording', async () => {
+  const f = setup()
+  await f.controller.start()
+  f.tracks[0].dispatchEvent(new Event('mute'))
+  f.tracks[1].dispatchEvent(new Event('mute'))
+  f.advance(MUTE_GRACE_MS - 1)
+  f.tracks[0].dispatchEvent(new Event('unmute'))
+  f.tracks[1].dispatchEvent(new Event('unmute'))
+  f.advance(MUTE_GRACE_MS)
+  assert.equal(f.controller.state.phase, 'recording')
+  f.controller.stop()
+  f.recorder.finish()
+  assert.equal(f.controller.state.phase, 'ready')
+  f.released()
+})
+
+for (const failure of ['construction', 'start']) {
+  test(`a NotSupportedError during recorder ${failure} is reported as unsupported`, async () => {
+    const f = setup()
+    const unsupported = new DOMException('Private vendor details', 'NotSupportedError')
+    if (failure === 'construction') f.setRecorder(() => { throw unsupported })
+    else f.recorder.start = () => { throw unsupported }
+    await f.controller.start()
+    assert.deepEqual(f.controller.state, { phase: 'error', elapsedMs: 0, clip: null, error: 'unsupported' })
+    f.released()
+  })
+}
+
+test('elapsed time is published only at whole-second boundaries', async () => {
+  const f = setup()
+  const elapsed: number[] = []
+  await f.controller.start()
+  f.controller.subscribe(state => elapsed.push(state.elapsedMs))
+  for (let step = 0; step < 12; step++) f.advance(250)
+  assert.deepEqual(elapsed, [1000, 2000, 3000])
+  f.controller.cancel()
+  f.released()
+})
 
 test('a controller is reusable after cleanup, as required by React StrictMode', async () => {
   const f = setup()

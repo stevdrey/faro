@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useRef, useState } from 'react'
-import { CaptureController } from './capture.ts'
+import { CaptureController, isInFlight } from './capture.ts'
 import type { CaptureError, RecordedClip } from './capture.ts'
 import { useAudioSession } from './AudioSession.tsx'
+import { useCoordinatedPlayback } from './use-coordinated-playback.ts'
 import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
 import { clips } from '../guidance/clips.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
@@ -17,58 +18,24 @@ const messages: Record<CaptureError, string> = {
 }
 
 function RecordedPlayback({ clip }: { clip: RecordedClip }) {
-  const { coordinator } = useAudioSession()
   const audio = useRef<HTMLAudioElement>(null)
-  const release = useRef<(() => void) | null>(null)
-  const generation = useRef(0)
-  const [playing, setPlaying] = useState(false)
-  const [failed, setFailed] = useState(false)
-  function stop() {
-    generation.current++
-    audio.current?.pause()
-    if (audio.current) audio.current.currentTime = 0
-    release.current?.()
-    release.current = null
-    setPlaying(false)
-  }
+  const { playback, active, play, stop, events } = useCoordinatedPlayback(audio)
   useEffect(() => {
     const player = audio.current!
     const url = URL.createObjectURL(clip.blob)
     player.src = url
     return () => {
-      generation.current++
       player.pause()
       player.removeAttribute('src')
       player.load()
       URL.revokeObjectURL(url)
-      release.current?.()
-      release.current = null
     }
   }, [clip])
-  async function play() {
-    stop()
-    release.current = coordinator?.play(stop) ?? null
-    if (coordinator && !release.current) return
-    const request = ++generation.current
-    setFailed(false)
-    setPlaying(true)
-    try {
-      await audio.current!.play()
-    } catch {
-      if (request === generation.current) { stop(); setFailed(true) }
-    }
-  }
   return <div className="recording-playback">
-    <audio ref={audio} preload="none" onEnded={event => { if (event.currentTarget.ended) stop() }}
-      onPause={event => { if (event.currentTarget.paused) { setPlaying(false); release.current?.(); release.current = null } }}
-      onPlaying={event => {
-        if (event.currentTarget.paused) return
-        if (coordinator?.isCapturing()) stop()
-        else { release.current ??= coordinator?.play(stop) ?? null; setPlaying(true) }
-      }} onError={() => { stop(); setFailed(true) }} />
+    <audio ref={audio} preload="none" {...events} />
     <button type="button" onKeyDown={preventRepeatedActivation} onClick={play}>Escuchar mi grabación</button>
-    <button type="button" aria-disabled={!playing} onClick={() => { if (playing) stop() }}>Detener reproducción</button>
-    <p role="status">{failed ? 'No se pudo escuchar. Podés intentarlo otra vez o borrar la grabación.' : playing ? 'Escuchando tu grabación…' : ''}</p>
+    <button type="button" aria-disabled={!active} onClick={() => { if (active) stop() }}>Detener reproducción</button>
+    <p role="status">{playback === 'unavailable' ? 'No se pudo escuchar. Podés intentarlo otra vez o borrar la grabación.' : active ? 'Escuchando tu grabación…' : ''}</p>
   </div>
 }
 
@@ -80,31 +47,32 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
   const { coordinator } = useAudioSession()
   const release = useRef<(() => void) | null>(null)
   const recordButton = useRef<HTMLButtonElement>(null)
-  const busy = ['requesting', 'recording', 'finalizing'].includes(state.phase)
+  const busy = isInFlight(state.phase)
+  const releaseCapture = () => {
+    release.current?.()
+    release.current = null
+  }
   useEffect(() => {
     const unsubscribe = controller.subscribe(next => {
       setState(next)
-      if (!['requesting', 'recording', 'finalizing'].includes(next.phase)) {
-        release.current?.()
-        release.current = null
-      }
+      if (!isInFlight(next.phase)) releaseCapture()
     })
-    const clear = () => { coordinator?.stopPlayback(); controller.cancel() }
+    // Players stop themselves on hiding/pagehide; cancelling also unmounts the clip player.
+    const clear = () => controller.cancel()
     const hidden = () => { if (document.hidden) clear() }
     document.addEventListener('visibilitychange', hidden)
     window.addEventListener('pagehide', clear)
     return () => {
       unsubscribe()
       controller.cancel()
-      release.current?.()
-      release.current = null
+      releaseCapture()
       document.removeEventListener('visibilitychange', hidden)
       window.removeEventListener('pagehide', clear)
     }
   }, [controller, coordinator])
   function start() {
     // Read the controller synchronously: multiple events may precede React's next render.
-    if (['requesting', 'recording', 'finalizing'].includes(controller.state.phase) || !authorized || document.hidden) return
+    if (isInFlight(controller.state.phase) || !authorized || document.hidden) return
     const lease = coordinator?.record() ?? null
     if (coordinator && !lease) return
     release.current = lease
@@ -136,7 +104,7 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
           : state.phase === 'ready' ? 'Grabación lista. El micrófono está apagado.'
           : state.phase === 'error' ? messages[state.error!] : 'Micrófono apagado. Vos elegís cuándo empezar.'}
       </p>
-      <p className="recording-timer" aria-label="Tiempo de grabación">{Math.floor(state.elapsedMs / 1000)} / 30 s</p>
+      <p className="recording-timer" role="timer" aria-label="Tiempo de grabación">{Math.floor(state.elapsedMs / 1000)} / 30 s</p>
       {state.phase === 'recording' && <p>{clips.recordingStop}</p>}
       {state.clip && <RecordedPlayback clip={state.clip} />}
     </>}

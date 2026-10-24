@@ -71,8 +71,9 @@ node .agents/scripts/pr-size-preflight.mjs
 Unit tests inject synthetic streams/recorders and a controlled clock. They cover
 multi-chunk finalization and MIME/duration, duration bounds, repeated activation,
 cancel in every capture/result phase, stale permission grants/rejections, error
-classification/recovery, construction/start/stop failures, stream mute/end,
-unexpected stop, empty audio, cleanup/reuse and stale audio ownership leases.
+classification/recovery (including an unsupported recorder), construction/start/stop
+failures, stream end, a mute that lasts past the 1.5 s grace period (a shorter
+mute recovers without discarding audio), whole-second timer updates, unexpected stop, empty audio, cleanup/reuse and stale audio ownership leases.
 
 The recording browser spec covers all four examples under React StrictMode,
 adult enablement, keyboard focus, touch sizing at 360 px, replay/delete/replace,

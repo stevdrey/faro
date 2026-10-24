@@ -27,7 +27,6 @@ export class AudioCoordinator {
     const owner = {}
     this.capture = owner
     this.stopPlayback()
-    this.playback = null
     this.notify()
     return () => {
       if (this.capture !== owner) return
