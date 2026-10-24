@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useCallback, useState } from 'react'
+import { AudioSessionProvider } from './features/recording/AudioSession.tsx'
+import { ExplanationRecorder } from './features/recording/ExplanationRecorder.tsx'
 import { MissingAddendScreen } from './features/missing-addend/MissingAddendScreen.tsx'
 import { SequenceScreen } from './features/sequences/SequenceScreen.tsx'
 import { SubtractionScreen } from './features/subtraction/SubtractionScreen.tsx'
@@ -16,6 +18,11 @@ export function App() {
 
 /** Activity selection and completion selection change together, without resetting an active choice. */
 export function DemoActivities({ completion }: { completion: AttemptCompletionController }) {
+  return <AudioSessionProvider><Activities completion={completion} /></AudioSessionProvider>
+}
+
+function Activities({ completion }: { completion: AttemptCompletionController }) {
+  const [authorized, setAuthorized] = useState(false)
   const [selection, setSelection] = useState<ActivitySelection>(initialSelection)
   const exercise = exerciseFor(selection)
   const { complete, reset } = completion
@@ -52,5 +59,7 @@ export function DemoActivities({ completion }: { completion: AttemptCompletionCo
         </select></label><p>Cambiar de ejemplo borra tus saltos.</p></div>
         <SequenceScreen key={exercise.exerciseId} exercise={exercise} onComplete={onComplete} onReset={onReset} />
       </>}
+    {completion.state.completedAttempt && <ExplanationRecorder key={exercise.exerciseId}
+      authorized={authorized} authorize={() => setAuthorized(true)} />}
   </>
 }

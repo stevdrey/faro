@@ -61,6 +61,20 @@ storage is introduced.
 
 `AssessmentResult(actionMathState, strategyEvidenceState, nextAction, ruleIds, assessmentVersion)` is an immutable, provider-independent result with three independent state axes and minimal provenance. `assessment.api.AssessmentResultPayload` adds `schemaVersion: 1`; its strict codec and matching readonly web types are documented in the [version 1 assessment contract and shared fixtures](../contracts/assessments/v1/README.md). Empty rule lists are valid; the rule catalog, evidence references, evaluator, and feedback policy remain future work. Constructing or decoding a result does not choose states or enforce cross-axis policy.
 
+FARO-011 adds a browser-local optional explanation after completion. A page-lifetime
+adult confirmation enables the controls; only explicit recording activation
+requests microphone permission. A provider-independent web capture controller
+owns transient `RecordedClip(blob, mimeType, durationMs)` data in the browser's
+native encoding. The panel lifetime associates that clip with the completed
+attempt without extending `CompletedAttempt` or the semantic trace contracts.
+Stop finalizes one clip; cancel, restart, context changes, hidden/leaving pages
+and unmount discard it and release hardware, listeners, timers and playback URLs.
+An application-scoped audio coordinator serializes guidance/clip playback and
+excludes playback throughout microphone permission, capture and finalization.
+There is no audio transport, persistence, normalization or ASR integration;
+FARO-012 remains responsible for normalization and adapter transport behind the
+FARO-040 backend privacy gate. See [capture verification](verification/browser-voice-capture.md).
+
 ## Request flow (planned)
 
 1. API provides exercise presentation **without** the expected result.

@@ -1,6 +1,6 @@
 # Project Faro
 
-**Status: local missing-addend, sequence and subtraction interaction demos — not yet a complete learning application.**
+**Status: local visual interaction demos with optional browser voice capture — not yet a complete learning application.**
 
 Project Faro is an experimental, privacy-first mathematics learning experience for a seven-year-old child, piloted with an accompanying adult. The first version focuses on manipulable math exercises and short spoken explanations in **Costa Rican Spanish**. This is research-oriented software, **not** a diagnostic tool.
 
@@ -8,7 +8,7 @@ Project Faro is an experimental, privacy-first mathematics learning experience f
 
 Can a child solve `18 = 12 + □`, explain how, and receive fair feedback even when speech recognition mishears a number? The MVP must treat an automatic transcript as a hypothesis, never a fact, and must never interpret insufficient evidence as lack of understanding.
 
-The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **Only the three local visual interaction demos and foundational contracts are implemented; the complete learning flow remains future work.**
+The future MVP 0.1 includes three exercise families (missing addend, sequences, decomposed subtraction), visual actions, push-to-talk voice capture, deterministic math checks, conservative assessment with indeterminate states, clarification by speech and images, and a separate adult review view. **The three local visual interaction demos, optional browser voice capture and foundational contracts are implemented; the complete learning flow remains future work.**
 
 ## Architecture
 
@@ -73,7 +73,8 @@ contain **0–10** blocks, with corrections allowed throughout exploration.
 **Terminaste** confirmation. It reveals no correctness or expected answer.
 **Intentar de nuevo** clears the attempt and starts at zero. Movements and the
 terminal finish event use the existing semantic action contract and remain only
-in memory: no attempt endpoint, storage, telemetry, audio capture, or grading is involved.
+in memory: no attempt endpoint, storage, telemetry or grading is involved. Optional
+voice capture is a separate post-completion step described below.
 The activity works with the web server alone; it does not require the API.
 Refreshing or closing the page also discards the attempt.
 
@@ -110,7 +111,8 @@ examples or activities, or reloading, also discards the current attempt. The
 existing v1 semantic trace records `jumpLeft`/`jumpRight`, their positive `value`,
 consecutive steps and UTC timestamps, plus one optional terminal `finishAttempt`.
 Only signed 32-bit arithmetic limits block movements. No answer is calculated or
-graded, and no API, storage, telemetry, or audio capture is added. FARO-009 adds local spoken guidance below.
+graded, and no API, storage or telemetry is added. Shared spoken guidance and
+optional post-completion voice capture are described below.
 See [FARO-006 verification](docs/verification/sequence-number-line.md).
 
 ## Subtraction tens-and-ones demo (FARO-007 / issue #24)
@@ -128,7 +130,8 @@ equation or grading. **Empezar de nuevo** also clears unfinished attempts.
 Switching activity or reloading discards the attempt. Explicit exchanges and
 movements use the opt-in [v2 action contract](contracts/actions/v2/README.md),
 replayable in Java and TypeScript. Blocks and sequences retain v1.
-The demo adds no API, storage, telemetry, audio capture, model provider or dependencies.
+The activity adds no API, storage, telemetry, model provider or dependencies.
+Shared optional post-completion voice capture is described below.
 See [FARO-007 verification](docs/verification/subtraction-tens-and-ones.md).
 
 ## Explicit attempt completion (FARO-008 / issue #25)
@@ -147,8 +150,9 @@ The snapshot exists only in memory. Restarting, selecting a different activity
 or sequence example, reloading, or closing the page discards it. Selecting the
 already active activity/example preserves the attempt. Only the chosen sequence
 example is remembered while switching activities within the open page; its
-actions are discarded. No history, API request, browser storage, audio capture,
-assessment, telemetry or model integration is added. See
+actions are discarded. No history, API request, browser storage,
+assessment, telemetry or model integration is added. The optional recording panel
+uses a separate transient clip; it does not change the completed snapshot. See
 [FARO-008 verification](docs/verification/explicit-attempt-completion.md).
 
 ## Replayable spoken guidance (FARO-009 / issue #26)
@@ -171,11 +175,43 @@ alone. Browsers without Opus support, such as Safari/iOS before 18.4, show the r
 message while visual exploration remains available. The accepted first
 version uses offline-generated synthetic Latin American Spanish with Costa Rican
 wording; its accent is not a validated Costa Rican voice. It needs a supervised
-listening/usability review before pilot use. There is no runtime TTS, microphone
-request, cloud service, new dependency, storage or telemetry. Two recording
-instruction clips are prepared for FARO-011; today's UI does not expose a
-recording flow. See [FARO-009 verification](docs/verification/spoken-guidance.md)
+listening/usability review before pilot use. Guidance makes no microphone request and adds no runtime TTS, cloud service,
+new dependency, storage or telemetry. FARO-011 reuses the recording-start clip
+and the recording-stop wording in the separate optional flow below. See [FARO-009 verification](docs/verification/spoken-guidance.md)
 and [asset provenance and regeneration](apps/web/public/audio/README.md).
+
+## Optional browser voice capture (FARO-011 / issue #12)
+
+After **Listo**, every activity offers **Contame cómo lo hiciste**. An accompanying
+adult must check the local confirmation and choose **Habilitar grabación**. This
+confirmation lasts only in memory for the open page, including activity changes;
+it is not authentication or the documented guardian consent required for a pilot.
+Enabling the function does not request microphone access. Only an explicit
+**Grabar explicación** activation requests browser permission and starts capture.
+
+Tap/click or use Enter/Space to start and **Detener grabación** to finish.
+The microphone indicator, elapsed time and **Cancelar** remain visible while
+recording. The app automatically stops at 30 seconds. Stopping retains one clip
+in memory; **Escuchar mi grabación**, **Detener reproducción**, **Borrar** and
+**Grabar de nuevo** allow local review and replacement. Cancel discards captured
+chunks, including while permission or final recording data is pending. A late
+permission grant after cancellation immediately releases its stream.
+
+Restarting, changing activity/example, hiding/leaving the page or unmounting
+stops capture/playback, releases microphone tracks and discards the clip. Returning
+never resumes recording. Reselecting the active activity/example preserves it.
+Guides and clip playback share one playback owner; starting capture stops playback
+and blocks guides until capture has finished. Microphone, permission or recorder
+errors show neutral retry messages and leave the visual activities available.
+
+This uses browser `getUserMedia`/`MediaRecorder` in a secure context such as
+loopback. The browser's actual encoding is preserved: there is no PCM conversion,
+ASR, audio upload, download control, storage, logging or telemetry. The app releases
+Blob references and revokes playback URLs on discard; browser-managed memory is
+reclaimed by the browser. No dependency, backend or semantic contract changes are
+needed. Automated recording verification uses Chromium with synthetic devices;
+Firefox/Safari and physical-device usability remain manual checks. See
+[FARO-011 verification](docs/verification/browser-voice-capture.md).
 
 ## Supply-chain safety
 
@@ -246,6 +282,6 @@ No extra dependencies or setup scripts are required. The CI `agent-skills` check
 
 ## Privacy and license
 
-**Do not use this initial scaffold with real children's data or expose it publicly.** The web and API bind to loopback. Recording, adult authorization, consent, deletion, and `LOCAL_ONLY` enforcement are **not yet implemented**. Do not commit recordings, transcripts, personal information, model weights, or secrets.
+**Do not use this initial scaffold with real children's data or expose it publicly.** The web and API bind to loopback. Browser-local recording now has an in-memory adult confirmation and clip discard. Strong adult authentication/authorization, documented pilot consent management, persistent-data deletion, and backend `LOCAL_ONLY` enforcement remain **unimplemented**. Do not commit recordings, transcripts, personal information, model weights, or secrets.
 
 **License:** Faro-owned source is [GNU AGPL-3.0-or-later](LICENSE). Third-party runtimes, model weights and external assets retain their separate licenses. See [licensing notes](docs/06-license-and-commercial-path.md).

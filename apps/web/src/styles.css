@@ -145,3 +145,13 @@ h2 > span { display: inline-grid; place-items: center; min-width: 34px; height: 
   .piece-area { min-height: 140px; }
   .exchange-controls button { width: 100%; }
 }
+
+.explanation-recorder { max-width: 900px; margin: 24px auto; padding: 24px; border: 2px solid #52675c; border-radius: 20px; background: #fffef9; }
+.recording-controls, .recording-playback { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.explanation-recorder button { min-height: 48px; min-width: 48px; padding: 12px 18px; border: 1px solid #52675c; border-radius: 12px; background: #ebf0e6; color: #263f39; font: inherit; font-weight: 650; }
+.explanation-recorder button:disabled, .explanation-recorder button[aria-disabled="true"] { opacity: .6; }
+.recording-authorization label { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 12px 0; }
+.recording-authorization input { width: 24px; height: 24px; flex-shrink: 0; }
+.recording-indicator { font-weight: 700; }
+.recording-timer { font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .explanation-recorder { margin: 16px; padding: 16px; } }

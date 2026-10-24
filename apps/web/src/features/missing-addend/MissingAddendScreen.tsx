@@ -121,7 +121,7 @@ export function MissingAddendScreen({ exercise, onComplete, onReset }: Props) {
             if (acceptTransition(event)) move('finishAttempt')
           }}>Listo <span aria-hidden="true">→</span></button>}
       </footer>
-      <p className="privacy-note">Demo local · No graba audio. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
+      <p className="privacy-note">Demo local · La explicación de voz después de Listo es opcional y requiere habilitación adulta. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
       {drag && <span ref={preview} className="block drag-preview" aria-hidden="true" style={{ left: drag.x, top: drag.y }} />}
     </section>
   )

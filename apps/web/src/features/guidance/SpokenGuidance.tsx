@@ -1,19 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useEffect, useReducer, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import { useReducer, useRef } from 'react'
 import { clips, clipSource, exerciseClip } from './clips.ts'
 import type { ClipId } from './clips.ts'
 import type { Exercise } from '../../contracts/exercise.ts'
+import { useCoordinatedPlayback } from '../recording/use-coordinated-playback.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
-
-type Playback = 'idle' | 'starting' | 'playing' | 'unavailable'
-
-/** Invalidates pending play() promises, then stops and rewinds the clip. */
-function halt(player: HTMLAudioElement, generation: RefObject<number>) {
-  generation.current++
-  player.pause()
-  player.currentTime = 0
-}
 
 /**
  * Renders the guidance for an exercise screen. Call restartGuidance when an unfinished attempt
@@ -27,72 +18,15 @@ export function useExerciseGuidance(exercise: Exercise, completed: boolean) {
 }
 
 /** Mount with a new key on exercise/phase/restart changes to cancel pending playback. */
-export function SpokenGuidance({ clip }: { clip: ClipId }) {
+export function SpokenGuidance({ clip, label = 'Escuchar guía' }: { clip: ClipId; label?: string }) {
   const audio = useRef<HTMLAudioElement>(null)
-  const generation = useRef(0)
-  const [playback, setPlayback] = useState<Playback>('idle')
-  // Media events can arrive before React re-renders, so they read the latest state from a ref.
-  const current = useRef<Playback>('idle')
-  const show = (next: Playback) => { current.current = next; setPlayback(next) }
-  const isActive = (value: Playback) => value === 'starting' || value === 'playing'
-  const active = isActive(playback)
-
-  useEffect(() => {
-    // The ref is already detached during unmount cleanup, so keep the element.
-    const player = audio.current!
-    const stopWhenHidden = () => {
-      if (document.hidden) {
-        halt(player, generation)
-        show('idle')
-      }
-    }
-    document.addEventListener('visibilitychange', stopWhenHidden)
-    return () => {
-      halt(player, generation)
-      document.removeEventListener('visibilitychange', stopWhenHidden)
-    }
-  }, [])
-
-  function stop() {
-    halt(audio.current!, generation)
-    show('idle')
-  }
-
-  async function play() {
-    stop()
-    const request = ++generation.current
-    show('starting')
-    try {
-      if (audio.current!.error) audio.current!.load()
-      await audio.current!.play()
-      if (request === generation.current) show('playing')
-    } catch {
-      // Interrupted play() promises may settle after stop, restart or unmount.
-      if (request === generation.current) show('unavailable')
-    }
-  }
+  const { playback, active, capturing, play, stop, events } = useCoordinatedPlayback(audio)
 
   return <div className="spoken-guidance" role="group" aria-label="Guía de voz">
-    <audio ref={audio} src={clipSource(clip, import.meta.env.BASE_URL)} preload="none"
-      onEnded={event => {
-        // A previous playback's queued event can arrive after replay has rewound it.
-        if (!event.currentTarget.ended) return
-        generation.current++
-        show('idle')
-      }}
-      onPause={event => {
-        // Media keys, OS interruptions or a lost headset can pause without ending. A pause queued
-        // by replay's own stop arrives after play() has already cleared `paused`; pauses queued by
-        // stop, hiding or an error arrive once playback is no longer active. Both are ignored.
-        if (!isActive(current.current) || !event.currentTarget.paused) return
-        generation.current++
-        show('idle')
-      }}
-      onPlaying={event => { if (!event.currentTarget.paused) show('playing') }}
-      onError={() => { stop(); show('unavailable') }} />
+    <audio ref={audio} src={clipSource(clip, import.meta.env.BASE_URL)} preload="none" {...events} />
     <div className="guidance-controls">
-      <button type="button" onKeyDown={preventRepeatedActivation} onClick={play}>
-        <span aria-hidden="true">🔊</span> Escuchar guía
+      <button type="button" onKeyDown={preventRepeatedActivation} aria-disabled={capturing} onClick={play}>
+        <span aria-hidden="true">🔊</span> {label}
       </button>
       {/* aria-disabled keeps the control focused after it stops the clip. */}
       <button type="button" aria-label="Detener guía" title="Detener guía" aria-disabled={!active}

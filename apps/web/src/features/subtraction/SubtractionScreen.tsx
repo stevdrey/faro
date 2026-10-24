@@ -100,7 +100,7 @@ export function SubtractionScreen({ exercise, onComplete, onReset }: Props) {
         onMouseDown={event => { if (state.completed) event.preventDefault() }}
         onClick={() => { if (!state.completed) operate({ kind: 'finishAttempt' }) }}>Listo <span aria-hidden="true">→</span></button>
     </footer>
-    <p className="privacy-note">Demo local · No graba audio. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
+    <p className="privacy-note">Demo local · La explicación de voz después de Listo es opcional y requiere habilitación adulta. Los movimientos se borran al reiniciar, cambiar de actividad o cerrar.</p>
     {drag && <span ref={preview} className={`math-piece drag-preview ${drag.move.value === 10 ? 'ten-piece' : 'unit-piece'}`}
       aria-hidden="true" style={{ left: drag.x, top: drag.y }}>
       {Array.from({ length: drag.move.value === 10 ? 10 : 1 }, (_, index) => <span key={index} />)}
