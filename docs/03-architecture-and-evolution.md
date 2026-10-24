@@ -33,7 +33,8 @@ The v1 action contract exposes five immutable domain variants: `PlaceBlock`, `Re
 
 `Attempt(id, exerciseId, sessionId, actionTrace, completionState)` remains a future concept; sessions, persistence, and attempt endpoints are not implemented by the action contract.
 
-FARO-008 implements a narrower browser-local `CompletedAttempt(exerciseId, trace)`.
+FARO-008 implements a narrower browser-local completion snapshot, extended by
+FARO-013 to `CompletedAttempt(attemptId, exerciseId, trace)`.
 A shared completion controller retains the deeply frozen trace supplied by the
 active screen's reducer after an explicit `Listo` activation. One
 `activity-selection` mapping chooses the shown exercise, and each screen's
@@ -41,10 +42,11 @@ callback names that `exerciseId`; the controller rejects any that differs from
 the selected one. It accepts only a terminal `finishAttempt`, keeps the first delivery, and clears it on restart or
 exercise selection changes. Re-selecting the current exercise is a no-op.
 Blocks/sequences retain v1 and subtraction retains v2, without conversion. This
-is one transient snapshot, with no history, session identity, endpoint, storage,
-assessment or provider dependency. Reloading/unmounting forgets it. The browser
-does not yet read this snapshot in production or send it to the backend; that
-step of the planned flow below remains future work.
+is one transient snapshot, with no history, session identity, endpoint, durable storage,
+assessment or provider dependency. Reloading/unmounting forgets it. FARO-013 reads
+only its random browser-local attempt identifier to attach a separate voice
+record; neither the identifier nor the trace is sent to the backend. Sending the
+completed trace remains future work.
 
 FARO-007 adds a separate sealed `ExchangeEvent` hierarchy (`DecomposeTen`,
 `ComposeTen`) through the opt-in [v2 action contract](../contracts/actions/v2/README.md).
@@ -79,6 +81,24 @@ outside assessment or the completed snapshot. The preview uses the FARO-040 admi
 synthetic-only; the policy is separate from consent and pilot authorization. See
 [capture verification](verification/browser-voice-capture.md) and
 [integration verification](verification/browser-asr-integration.md).
+
+FARO-013 adds `CompletionState.speechRecord` as one immutable browser-memory
+observation, outside `CompletedAttempt` and the semantic action contracts.
+`stage: capture` records ready media duration or a stable capture error, including
+`permission` and `empty`. `stage: asr` records either a validated hypothesis or a
+stable transcription error. Recording duration and the server-derived PCM
+duration are distinct; engine/model/revision/effective language and latency come only from
+valid ASR responses. No audio, URL or raw exception is copied into this record.
+There is no history or server store. Updates and clears must name the active
+`attemptId`; capture/transcription generations reject obsolete work within that
+attempt. The recorder is the only writer: an ASR outcome supersedes the ready
+clip's capture record, and any capture transition that drops the clip cancels
+ASR synchronously. New recording/transcription replaces the observation, and
+existing cancel/delete/context/hidden/unmount boundaries discard it without
+changing the mathematical snapshot. `CompletionState` is generic over the
+observation (`AttemptObservation` needs only `attemptId`), so the shared
+completion module does not depend on the recording feature. Durable storage is deferred to FARO-025. See
+[safe speech metadata verification](verification/safe-speech-metadata.md).
 
 ## Request flow (planned)
 

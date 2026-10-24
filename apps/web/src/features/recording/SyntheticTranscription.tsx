@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useState } from 'react'
 import type { RecordedClip } from './capture.ts'
-import { TranscriptionController } from './transcription.ts'
+import type { TranscriptionController } from './transcription.ts'
 import type { AudioErrorCode } from './normalize.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
 
@@ -14,19 +14,14 @@ const messages: Record<AudioErrorCode, string> = {
   provider: 'No se pudo obtener una transcripción. Podés reintentar o seguir con la actividad.',
 }
 
-/** Explicitly enabled synthetic preview using FARO-040 admission; not an adult review or consent gate. */
-export function SyntheticTranscription({ clip }: { clip: RecordedClip }) {
-  const [controller] = useState(() => new TranscriptionController())
+/**
+ * Explicitly enabled synthetic preview using FARO-040 admission; not an adult review or consent gate.
+ * The recorder owns the controller and cancels it synchronously whenever the clip is dropped.
+ */
+export function SyntheticTranscription({ clip, controller }: { clip: RecordedClip; controller: TranscriptionController }) {
   const [state, setState] = useState(controller.state)
   const [confirmed, setConfirmed] = useState(false)
-  useEffect(() => {
-    const unsubscribe = controller.subscribe(setState)
-    // Hiding/pagehide cancel the parent capture, which drops the clip and unmounts this preview.
-    return () => {
-      unsubscribe()
-      controller.cancel()
-    }
-  }, [controller])
+  useEffect(() => controller.subscribe(setState), [controller])
   return <div className="synthetic-transcription">
     <p>Prueba técnica: solo audio sintético, con procesamiento local. Esta vista previa no habilita el uso con audio infantil.</p>
     <label><input type="checkbox" checked={confirmed} onChange={event => {

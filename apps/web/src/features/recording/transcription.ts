@@ -10,6 +10,7 @@ export interface Transcription {
   readonly modelId: string
   readonly modelVersion: string
   readonly latencyMs: number
+  readonly audioDurationMs: number
   readonly status: 'TRANSCRIBED' | 'EMPTY' | 'UNRELIABLE' | 'UNAVAILABLE'
 }
 export interface TranscriptionState {
@@ -23,12 +24,17 @@ export function readTranscription(value: unknown): Transcription {
   if (item.schemaVersion !== 1 || typeof item.transcript !== 'string' || item.transcript.length > 16_000
     || !['languageTag', 'engineId', 'modelId', 'modelVersion'].every(key => typeof item[key] === 'string' && item[key].length > 0)
     || typeof item.latencyMs !== 'number' || !Number.isSafeInteger(item.latencyMs) || item.latencyMs < 0
+    || typeof item.audioDurationMs !== 'number' || !Number.isSafeInteger(item.audioDurationMs)
+    || item.audioDurationMs < 0 || item.audioDurationMs > 30_000
     || !['TRANSCRIBED', 'EMPTY', 'UNRELIABLE', 'UNAVAILABLE'].includes(item.status as string)
     || (item.status === 'TRANSCRIBED' && !item.transcript.trim())
     || ((item.status === 'EMPTY' || item.status === 'UNAVAILABLE') && item.transcript.trim())) {
     throw new AudioError('provider')
   }
-  return Object.freeze({ ...item }) as unknown as Transcription
+  // An allowlist prevents unrecognized response properties from retaining media or private diagnostics.
+  return Object.freeze({ schemaVersion: 1, transcript: item.transcript, languageTag: item.languageTag,
+    engineId: item.engineId, modelId: item.modelId, modelVersion: item.modelVersion,
+    latencyMs: item.latencyMs, audioDurationMs: item.audioDurationMs, status: item.status }) as Transcription
 }
 async function send(pcm: ArrayBuffer, signal: AbortSignal): Promise<Transcription> {
   let response: Response

@@ -139,11 +139,11 @@ See [FARO-007 verification](docs/verification/subtraction-tens-and-ones.md).
 One click or tap on **Listo** explicitly completes the active exercise, including
 an attempt with no movements. Blocks, sequences and subtraction all deliver one
 deeply frozen semantic trace ending in `finishAttempt`. The application retains
-one immutable `CompletedAttempt` containing the `exerciseId` and the original
+one immutable `CompletedAttempt` containing a browser-local random `attemptId`, the `exerciseId` and the original
 trace: v1 for blocks/sequences, v2 for subtraction. Each screen reports its own
 `exerciseId`, so a trace is never attached to a different exercise, and repeated
-delivery cannot overwrite it. Production code does not read the snapshot yet; it
-is an integration seam observed only by the browser test harness. Exploration and completion show no correct/incorrect cues; the
+delivery cannot overwrite it. FARO-013 uses its attempt identifier to associate a separate
+transient voice record; the mathematical trace is not consumed for assessment. Exploration and completion show no correct/incorrect cues; the
 confirmation remains **Terminaste**, and further movement is blocked.
 
 The snapshot exists only in memory. Restarting, selecting a different activity
@@ -244,6 +244,29 @@ browser storage or telemetry. The baseline's Docker logging stays disabled.
 This is not the protected adult review or authorization for a pilot.
 See [FARO-012 verification and synthetic smoke test](docs/verification/browser-asr-integration.md).
 
+## Safe speech metadata (FARO-013 / issue #27)
+
+The active completed attempt retains one immutable voice observation separately
+from its mathematical snapshot. Capture distinguishes permission denial, empty
+media and other technical errors. A valid ASR response retains the exact
+**unconfirmed** hypothesis, status, effective language, engine, model/revision and
+latency. The recording's elapsed duration is separate from `audioDurationMs`,
+which the API computes from normalized PCM sample count and truncates to whole
+milliseconds. Failures keep only stable codes, without a client-computed
+duration, model identity or latency. Microphone failures never reach the API.
+
+Starting another recording/transcription replaces the previous observation; an
+ASR outcome supersedes the ready clip's capture record, and cancelling or
+withdrawing the preview returns to it while the clip exists. Cancel, delete,
+restart, activity/example changes, hiding/leaving, reload and unmount discard it; reselecting the active activity preserves it. Attempt IDs and
+controller generations reject stale callbacks, including after repeating the
+same exercise. Records contain no audio, playback URL or exception and never
+enter general logs. Audio remains only in the existing transient capture/player.
+No browser storage, server persistence or retry history is introduced;
+durable session storage/deletion belongs to FARO-025. The synthetic preview
+remains disabled by default and this change does not authorize child-audio use.
+See [FARO-013 verification](docs/verification/safe-speech-metadata.md).
+
 ## Supply-chain safety
 
 **Dependency lifecycle scripts are disabled:** `apps/web/.npmrc` sets `ignore-scripts=true`. This blocks dependency `preinstall`, `install`, `postinstall` and similar scripts at install time; the CI command repeats `--ignore-scripts`. Deliberate `npm run build` commands still execute (as intended).
@@ -313,6 +336,6 @@ No extra dependencies or setup scripts are required. The CI `agent-skills` check
 
 ## Privacy and license
 
-**Do not use this initial scaffold with real children's data or expose it publicly.** The web and API bind to loopback. Browser-local recording now has an in-memory adult confirmation and clip discard. Strong adult authentication/authorization, documented pilot consent management, persistent-data deletion, and backend `LOCAL_ONLY` enforcement remain **unimplemented**. Do not commit recordings, transcripts, personal information, model weights, or secrets.
+**Do not use this demo with real children's data or expose it publicly.** The web and API bind to loopback. Browser-local recording has an in-memory adult confirmation and clip/metadata discard, and FARO-040 enforces backend `LOCAL_ONLY` admission. Strong adult authentication/authorization, documented pilot consent management and persistent-data deletion remain **unimplemented**. Do not commit recordings, transcripts, personal information, model weights, or secrets.
 
 **License:** Faro-owned source is [GNU AGPL-3.0-or-later](LICENSE). Third-party runtimes, model weights and external assets retain their separate licenses. See [licensing notes](docs/06-license-and-commercial-path.md).

@@ -8,8 +8,13 @@ import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
 import { clips } from '../guidance/clips.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
 import { SyntheticTranscription } from './SyntheticTranscription.tsx'
+import { TranscriptionController } from './transcription.ts'
+import type { TranscriptionState } from './transcription.ts'
+import { speechRecord } from './speech-record.ts'
+import type { SpeechRecord } from './speech-record.ts'
 
 const synthetic = import.meta.env.VITE_FARO_SYNTHETIC_ASR === 'true'
+const isIdle = (state: TranscriptionState) => !state.busy && !state.result && !state.error
 
 const messages: Record<CaptureError, string> = {
   permission: 'El micrófono no tiene permiso. Pedile ayuda a la persona adulta o seguí jugando.',
@@ -43,8 +48,12 @@ function RecordedPlayback({ clip }: { clip: RecordedClip }) {
 }
 
 /** Mounted only for one completed attempt; authorization is owned by the open application. */
-export function ExplanationRecorder({ authorized, authorize }: { authorized: boolean; authorize: () => void }) {
+export function ExplanationRecorder({ authorized, authorize, attemptId, recordSpeech }: {
+  authorized: boolean; authorize: () => void; attemptId: string
+  recordSpeech: (attemptId: string, record: SpeechRecord | null) => void
+}) {
   const [controller] = useState(() => new CaptureController())
+  const [transcription] = useState(() => new TranscriptionController())
   const [state, setState] = useState(controller.state)
   const [confirmed, setConfirmed] = useState(false)
   const { coordinator } = useAudioSession()
@@ -56,23 +65,34 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
     release.current = null
   }
   useEffect(() => {
-    const unsubscribe = controller.subscribe(next => {
+    // The single writer of the record: ASR outcomes supersede the ready clip's capture record.
+    const publish = () => recordSpeech(attemptId, speechRecord(attemptId, controller.state, transcription.state))
+    let phase = controller.state.phase
+    const unsubscribeCapture = controller.subscribe(next => {
+      // Every path that drops the clip invalidates ASR here, before a response continuation or React unmount.
+      if (next.phase !== 'ready' && !isIdle(transcription.state)) transcription.cancel()
       setState(next)
+      // Recording ticks repeat the phase and cannot change the record.
+      if (next.phase !== phase) { phase = next.phase; publish() }
       if (!isInFlight(next.phase)) releaseCapture()
     })
-    // Players stop themselves on hiding/pagehide; cancelling also unmounts the clip player.
+    const unsubscribeTranscription = transcription.subscribe(publish)
+    // Players stop themselves on hiding/pagehide; cancelling also unmounts the clip player and invalidates ASR.
     const clear = () => controller.cancel()
     const hidden = () => { if (document.hidden) clear() }
     document.addEventListener('visibilitychange', hidden)
     window.addEventListener('pagehide', clear)
     return () => {
-      unsubscribe()
+      unsubscribeCapture()
+      unsubscribeTranscription()
       controller.cancel()
+      transcription.cancel()
+      recordSpeech(attemptId, null)
       releaseCapture()
       document.removeEventListener('visibilitychange', hidden)
       window.removeEventListener('pagehide', clear)
     }
-  }, [controller, coordinator])
+  }, [controller, transcription, coordinator, attemptId, recordSpeech])
   function start() {
     // Read the controller synchronously: multiple events may precede React's next render.
     if (isInFlight(controller.state.phase) || !authorized || document.hidden) return
@@ -110,7 +130,7 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
       <p className="recording-timer" role="timer" aria-label="Tiempo de grabación">{Math.floor(state.elapsedMs / 1000)} / 30 s</p>
       {state.phase === 'recording' && <p>{clips.recordingStop}</p>}
       {state.clip && <RecordedPlayback clip={state.clip} />}
-      {state.clip && synthetic && <SyntheticTranscription clip={state.clip} />}
+      {state.clip && synthetic && <SyntheticTranscription clip={state.clip} controller={transcription} />}
     </>}
     <p className="privacy-note">El audio queda en memoria. Se borra al cancelar, borrar, repetir, reiniciar, cambiar de actividad, ocultar o cerrar la página. {synthetic
       ? 'Solo «Transcribir prueba» envía el audio normalizado al servidor local para transcribirlo; no se guarda. Usá solo audio sintético.'

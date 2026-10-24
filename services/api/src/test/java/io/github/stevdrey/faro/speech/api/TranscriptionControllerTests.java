@@ -18,10 +18,16 @@ import io.github.stevdrey.faro.speech.SpeechStatus;
 import io.github.stevdrey.faro.speech.config.SpeechProperties;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+@ExtendWith(OutputCaptureExtension.class)
 class TranscriptionControllerTests {
     private final SpeechRecognizer recognizer = mock(SpeechRecognizer.class);
     private final TranscriptionController controller = new TranscriptionController(recognizer,
@@ -35,7 +41,8 @@ class TranscriptionControllerTests {
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.schemaVersion").value(1)).andExpect(jsonPath("$.transcript").value("seis"))
                 .andExpect(jsonPath("$.languageTag").value("es")).andExpect(jsonPath("$.status").value("TRANSCRIBED"))
-                .andExpect(jsonPath("$.modelVersion").value("1"));
+                .andExpect(jsonPath("$.modelVersion").value("1"))
+                .andExpect(jsonPath("$.audioDurationMs").value(0));
         var request = ArgumentCaptor.forClass(io.github.stevdrey.faro.speech.SpeechRequest.class);
         verify(recognizer).transcribe(request.capture());
         assertThat(request.getValue().pcm16Mono()).isEqualTo(new byte[]{1, 2});
@@ -43,6 +50,31 @@ class TranscriptionControllerTests {
         assertThat(request.getValue().languageTag()).isEqualTo("es-CR");
         assertThat(request.getValue().maxDuration()).isEqualTo(Duration.ofSeconds(30));
         assertThat(request.getValue().correlationId()).matches("[a-f0-9-]{36}");
+    }
+    @ParameterizedTest
+    @ValueSource(ints = {2, 32, 34, 32_000, 960_000})
+    void durationComesFromPcmSamplesTruncatedToMillisecondsAndNotClientMetadata(int bytes) throws Exception {
+        when(recognizer.transcribe(any())).thenReturn(new SpeechHypothesis("", "es", "synthetic", "test", "1", 7, SpeechStatus.EMPTY));
+        mvc.perform(post("/api/v1/speech/transcriptions").contentType("application/octet-stream")
+                        .header("X-Audio-Duration-Ms", "999999").content(new byte[bytes]))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.audioDurationMs").value(bytes / 32))
+                .andExpect(jsonPath("$.latencyMs").value(7)).andExpect(jsonPath("$.status").value("EMPTY"))
+                .andExpect(jsonPath("$.transcript").value(""));
+    }
+    @Test
+    void successfulHypothesesAndUnexpectedProviderDiagnosticsNeverEnterGeneralLogs(CapturedOutput output) throws Exception {
+        String privateText = "synthetic-private-transcript-marker";
+        String privateDiagnostic = "synthetic-private-provider-diagnostic";
+        when(recognizer.transcribe(any())).thenReturn(new SpeechHypothesis(privateText, "es", "synthetic", "test", "1", 2, SpeechStatus.TRANSCRIBED));
+        mvc.perform(post("/api/v1/speech/transcriptions").contentType("application/octet-stream").content(new byte[32]))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.transcript").value(privateText))
+                .andExpect(jsonPath("$.audioDurationMs").value(1));
+        doThrow(new IllegalStateException(privateDiagnostic)).when(recognizer).transcribe(any());
+        mvc.perform(post("/api/v1/speech/transcriptions").contentType("application/octet-stream").content(new byte[32]))
+                .andExpect(status().isBadGateway()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().json("{\"code\":\"PROVIDER_ERROR\"}"));
+        assertThat(output.getAll()).doesNotContain(privateText, privateDiagnostic);
     }
     @Test
     void rejectsUnsupportedEmptyPartialAndOversizedAudioWithoutCallingProvider() throws Exception {

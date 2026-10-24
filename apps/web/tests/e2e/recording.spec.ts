@@ -15,6 +15,7 @@ declare global {
       permission: 'success' | 'pending' | 'denied' | 'device'
       resolve: () => void
       autoFinalize: boolean
+      empty: boolean
       active: Set<HTMLMediaElement>
       plays: number
       created: string[]
@@ -26,7 +27,7 @@ async function mockCapture(page: Page) {
   await page.addInitScript(() => {
     const media: Window['captureMedia'] = {
       requests: [], tracks: [], recorders: [], permission: 'success', resolve: () => {},
-      autoFinalize: true, active: new Set(), plays: 0, created: [], revoked: [],
+      autoFinalize: true, empty: false, active: new Set(), plays: 0, created: [], revoked: [],
     }
     window.captureMedia = media
     class Track extends EventTarget {
@@ -53,7 +54,7 @@ async function mockCapture(page: Page) {
       start() { this.starts++; this.state = 'recording' }
       stop() { this.stops++; this.state = 'inactive'; if (media.autoFinalize) queueMicrotask(() => this.finish()) }
       finish() {
-        this.dispatchEvent(new BlobEvent('dataavailable', { data: new Blob(['synthetic'], { type: this.mimeType }) }))
+        this.dispatchEvent(new BlobEvent('dataavailable', { data: new Blob(media.empty ? [] : ['synthetic'], { type: this.mimeType }) }))
         this.dispatchEvent(new Event('stop'))
       }
     }
@@ -110,14 +111,19 @@ for (const activity of [
     await expect(control(page, 'Detener grabación')).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(control(page, 'Grabar de nuevo')).toBeFocused()
+    await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({
+      attemptId: completed!.attemptId, stage: 'capture', status: 'ready', recordingDurationMs: expect.any(Number),
+    })
     await control(page, 'Escuchar mi grabación').click()
     expect(await page.evaluate(() => window.captureMedia.active.size)).toBe(1)
     await control(page, 'Detener reproducción').click()
     expect(await page.evaluate(() => window.captureMedia.active.size)).toBe(0)
     await control(page, 'Grabar de nuevo').click()
+    await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
     await expect(control(page, 'Escuchar mi grabación')).toHaveCount(0)
     await control(page, 'Detener grabación').click()
     await control(page, 'Borrar').click()
+    await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
     await expect(control(page, 'Grabar explicación')).toBeFocused()
     await expect(control(page, 'Escuchar mi grabación')).toHaveCount(0)
     expect(await page.evaluate(() => window.captureMedia.requests)).toEqual([
@@ -129,6 +135,7 @@ for (const activity of [
     await page.getByRole('button', { name: activity.reset, exact: true }).click()
     await expect(panel(page)).toHaveCount(0)
     await finishAndAuthorize(page)
+    expect(await page.evaluate(() => window.attemptEvidence.current?.attemptId)).not.toBe(completed!.attemptId)
     await expect(control(page, 'Grabar explicación')).toBeVisible()
     await page.reload()
     await page.getByRole('button', { name: 'Listo', exact: true }).click()
@@ -220,6 +227,7 @@ for (const phase of ['recording', 'playback']) for (const change of ['reset', 'a
     })
     if (change === 'pagehide') await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
     if (change === 'unmount') await page.evaluate(() => window.unmountHarness())
+    await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
     expect(await page.evaluate(() => window.captureMedia.active.size)).toBe(0)
     await expect(control(page, 'Escuchar mi grabación')).toHaveCount(0)
     expect(await page.evaluate(() => window.captureMedia.created.every(url => window.captureMedia.revoked.includes(url)))).toBe(true)
@@ -259,6 +267,7 @@ for (const action of ['cancel', 'reset', 'activity', 'example', 'hidden', 'pageh
     if (action === 'pagehide') await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
     if (action === 'unmount') await page.evaluate(() => window.unmountHarness())
     await page.evaluate(() => window.captureMedia.resolve())
+    await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
     expect(await page.evaluate(() => window.captureMedia.requests.length)).toBe(1)
     expect(await page.evaluate(() => window.captureMedia.recorders.length)).toBe(0)
     expect(await page.evaluate(() => window.captureMedia.tracks.every(track => track.readyState === 'ended'))).toBe(true)
@@ -270,9 +279,12 @@ test('reselecting preserves a clip; changing activities clears it but keeps page
   await page.goto(harness)
   await finishAndAuthorize(page)
   await clip(page)
+  const speech = await page.evaluate(() => window.attemptEvidence.speechRecord)
   await page.getByRole('button', { name: 'Bloques', exact: true }).click()
+  expect(await page.evaluate(() => window.attemptEvidence.speechRecord)).toEqual(speech)
   await expect(control(page, 'Escuchar mi grabación')).toBeVisible()
   await page.getByRole('button', { name: 'Restas', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
   await expect(panel(page)).toHaveCount(0)
   await page.getByRole('button', { name: 'Listo', exact: true }).click()
   await expect(control(page, 'Grabar explicación')).toBeVisible()
@@ -299,19 +311,34 @@ test('duration limit finalizes once, and cancel can discard queued final data', 
   await expect(control(page, 'Escuchar mi grabación')).toHaveCount(0)
 })
 
-for (const error of ['denied', 'device', 'unsupported', 'interrupted', 'recorder'] as const) {
+for (const error of ['denied', 'device', 'unsupported', 'interrupted', 'recorder', 'empty'] as const) {
   test(`${error} shows neutral recovery without retaining private data`, async ({ page }) => {
     await mockCapture(page)
     await page.goto(harness)
     await finishAndAuthorize(page)
+    const completed = await page.evaluate(() => window.attemptEvidence.current)
+    const uploads: string[] = []
+    const messages: string[] = []
+    page.on('request', request => { if (request.method() !== 'GET') uploads.push(request.url()) })
+    page.on('console', message => messages.push(message.text()))
+    page.on('pageerror', error => messages.push(error.message))
     if (error === 'denied' || error === 'device') await page.evaluate(value => { window.captureMedia.permission = value }, error)
     if (error === 'unsupported') await page.evaluate(() => { Object.defineProperty(window, 'MediaRecorder', { value: undefined }) })
+    if (error === 'empty') await page.evaluate(() => { window.captureMedia.empty = true })
     await control(page, 'Grabar explicación').click()
     if (error === 'interrupted') await page.evaluate(() => window.captureMedia.tracks[0].dispatchEvent(new Event('ended')))
     if (error === 'recorder') await page.evaluate(() => window.captureMedia.recorders[0].dispatchEvent(new Event('error')))
+    if (error === 'empty') await control(page, 'Detener grabación').click()
     await expect(panel(page).locator('.recording-indicator')).toContainText(/Podés|Pedile/)
     await expect(control(page, 'Escuchar mi grabación')).toHaveCount(0)
     await expect(page.getByText('Synthetic private detail', { exact: false })).toHaveCount(0)
+    const code = { denied: 'permission', device: 'device', unsupported: 'unsupported', interrupted: 'interrupted', recorder: 'capture', empty: 'empty' }[error]
+    await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toEqual({
+      attemptId: completed!.attemptId, stage: 'capture', status: 'error', error: code,
+    })
+    expect(await page.evaluate(() => window.attemptEvidence.current)).toEqual(completed)
+    expect(uploads).toEqual([])
+    expect(messages.join('\n')).not.toContain('Synthetic private detail')
     await page.getByRole('button', { name: 'Intentar de nuevo', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Listo', exact: true })).toBeVisible()
   })
