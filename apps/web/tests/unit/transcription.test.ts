@@ -35,10 +35,10 @@ test('validates the technical result rather than trusting malformed provider JSO
   assert.deepEqual(readTranscription({ ...result, audio: blob, exception: 'synthetic private vendor data' }), result)
 })
 
-test('ASR failures and deadlines retain only the known normalized duration, without model identity', async () => {
+test('ASR failures and deadlines retain only a stable code, without client duration or model identity', async () => {
   const { controller } = fixture(async () => new ArrayBuffer(3200), async () => { throw new AudioError('unavailable') })
   await controller.start(blob)
-  assert.deepEqual(controller.state, { busy: false, error: 'unavailable', audioDurationMs: 100 })
+  assert.deepEqual(controller.state, { busy: false, error: 'unavailable' })
   const response = pending<Transcription>()
   const waiting = fixture(async () => new ArrayBuffer(3200), () => response.promise)
   const work = waiting.controller.start(blob)
@@ -46,7 +46,7 @@ test('ASR failures and deadlines retain only the known normalized duration, with
   waiting.timeout()
   response.resolve(result)
   await work
-  assert.deepEqual(waiting.controller.state, { busy: false, error: 'timeout', audioDurationMs: 100 })
+  assert.deepEqual(waiting.controller.state, { busy: false, error: 'timeout' })
 })
 test('normalizes before sending, emits a result, and releases its timeout', async () => {
   const { controller, cleared } = fixture()

@@ -10,18 +10,19 @@ import type { Activity, ActivitySelection } from './features/shared/activity-sel
 import type { CompletedTrace } from './features/shared/attempt-completion.ts'
 import { useAttemptCompletion } from './features/shared/use-attempt-completion.ts'
 import type { AttemptCompletionController } from './features/shared/use-attempt-completion.ts'
+import type { SpeechRecord } from './features/recording/speech-record.ts'
 
 export function App() {
-  const completion = useAttemptCompletion(exerciseFor(initialSelection).exerciseId)
+  const completion = useAttemptCompletion<SpeechRecord>(exerciseFor(initialSelection).exerciseId)
   return <DemoActivities completion={completion} />
 }
 
 /** Activity selection and completion selection change together, without resetting an active choice. */
-export function DemoActivities({ completion }: { completion: AttemptCompletionController }) {
+export function DemoActivities({ completion }: { completion: AttemptCompletionController<SpeechRecord> }) {
   return <AudioSessionProvider><Activities completion={completion} /></AudioSessionProvider>
 }
 
-function Activities({ completion }: { completion: AttemptCompletionController }) {
+function Activities({ completion }: { completion: AttemptCompletionController<SpeechRecord> }) {
   const [authorized, setAuthorized] = useState(false)
   const [selection, setSelection] = useState<ActivitySelection>(initialSelection)
   const exercise = exerciseFor(selection)

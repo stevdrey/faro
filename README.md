@@ -252,12 +252,13 @@ media and other technical errors. A valid ASR response retains the exact
 **unconfirmed** hypothesis, status, effective language, engine, model/revision and
 latency. The recording's elapsed duration is separate from `audioDurationMs`,
 which the API computes from normalized PCM sample count and truncates to whole
-milliseconds. Failures keep only stable codes and any known duration, without
-inventing model identity or latency. Microphone failures never reach the API.
+milliseconds. Failures keep only stable codes, without a client-computed
+duration, model identity or latency. Microphone failures never reach the API.
 
-Starting another recording/transcription replaces the previous observation.
-Cancel, delete, restart, activity/example changes, hiding/leaving, reload and
-unmount discard it; reselecting the active activity preserves it. Attempt IDs and
+Starting another recording/transcription replaces the previous observation; an
+ASR outcome supersedes the ready clip's capture record, and cancelling or
+withdrawing the preview returns to it while the clip exists. Cancel, delete,
+restart, activity/example changes, hiding/leaving, reload and unmount discard it; reselecting the active activity preserves it. Attempt IDs and
 controller generations reject stale callbacks, including after repeating the
 same exercise. Records contain no audio, playback URL or exception and never
 enter general logs. Audio remains only in the existing transient capture/player.

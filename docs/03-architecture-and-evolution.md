@@ -86,14 +86,18 @@ FARO-013 adds `CompletionState.speechRecord` as one immutable browser-memory
 observation, outside `CompletedAttempt` and the semantic action contracts.
 `stage: capture` records ready media duration or a stable capture error, including
 `permission` and `empty`. `stage: asr` records either a validated hypothesis or a
-stable transcription error. Recording duration and normalized PCM duration are
-distinct; engine/model/revision/effective language and latency come only from
+stable transcription error. Recording duration and the server-derived PCM
+duration are distinct; engine/model/revision/effective language and latency come only from
 valid ASR responses. No audio, URL or raw exception is copied into this record.
 There is no history or server store. Updates and clears must name the active
 `attemptId`; capture/transcription generations reject obsolete work within that
-attempt. New recording/transcription replaces the observation, and existing
-cancel/delete/context/hidden/unmount boundaries discard it without changing the
-mathematical snapshot. Durable storage is deferred to FARO-025. See
+attempt. The recorder is the only writer: an ASR outcome supersedes the ready
+clip's capture record, and any capture transition that drops the clip cancels
+ASR synchronously. New recording/transcription replaces the observation, and
+existing cancel/delete/context/hidden/unmount boundaries discard it without
+changing the mathematical snapshot. `CompletionState` is generic over the
+observation (`AttemptObservation` needs only `attemptId`), so the shared
+completion module does not depend on the recording feature. Durable storage is deferred to FARO-025. See
 [safe speech metadata verification](verification/safe-speech-metadata.md).
 
 ## Request flow (planned)

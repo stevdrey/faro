@@ -4,16 +4,17 @@
 
 One `CompletionState.speechRecord` lives only in browser memory for the current
 completed attempt. Its random `attemptId` survives duplicate completion delivery
-and changes after restart. It is never sent to the speech API. The frozen
+and changes after restart; it comes from `crypto.getRandomValues`, so it also
+works outside a secure context. It is never sent to the speech API. The frozen
 `CompletedAttempt` and its mathematical trace are not rewritten by voice updates.
 
 Capture records distinguish ready media, permission denial, empty media and
 other stable capture errors. ASR records retain either a validated unconfirmed
 hypothesis or a stable error. `recordingDurationMs` measures capture elapsed
-time; `audioDurationMs` measures normalized PCM, not inference time. Valid ASR
-responses supply effective language, engine, model, revision and latency.
-Failures do not invent provenance or latency; normalized duration is retained
-only if normalization completed before the failure/deadline.
+time; `audioDurationMs` measures normalized PCM, not inference time, and exists
+only in a valid server response. Valid ASR responses supply effective language,
+engine, model, revision and latency. Failures do not invent provenance, latency
+or a client-computed PCM duration.
 
 `POST /api/v1/speech/transcriptions` adds `audioDurationMs` to its existing v1
 success payload. It comes from server-owned `SpeechRequest.audioDuration()`
@@ -24,16 +25,22 @@ valid samples can produce an `EMPTY` hypothesis. Errors still return only
 client requires this duration and rejects malformed/old responses safely.
 
 Record construction projects owned fields only, retaining no Blob/PCM, playback
-URL, extra response property or original exception. A new recording/transcription
-clears the previous record. Cancel/delete, restart, activity/example changes,
-hidden/leaving, reload and unmount discard it; active reselection preserves it.
-Attempt identity and controller generations prevent obsolete callbacks from
-repopulating it, including when repeating the same exercise. The transcription
-component cancels its own controller synchronously on hidden `visibilitychange`
-and on `pagehide`, rather than relying on React to unmount it after the parent
-discards capture. The event handler aborts HTTP and invalidates the generation
-before a response continuation can write a new record; listeners are removed
-on cleanup.
+URL, extra response property or original exception; the response boundary
+allowlists the hypothesis once and the record keeps that frozen object. A new
+recording/transcription clears the previous record. An ASR outcome supersedes
+the ready clip's capture record; cancelling ASR or withdrawing the synthetic
+confirmation returns to the capture record while the clip exists. Delete,
+restart, activity/example changes, hidden/leaving, reload and unmount discard
+it; active reselection preserves it. Recording ticks do not dispatch updates.
+
+The recorder owns both controllers and is the record's only writer. Whenever a
+capture transition drops the clip (delete, re-record, capture error, hidden
+`visibilitychange`, `pagehide` or unmount), its capture subscriber cancels the
+transcription synchronously, aborting HTTP and invalidating the generation
+before a response continuation can write, rather than relying on React to
+unmount the preview. Attempt identity and controller generations prevent
+obsolete callbacks from repopulating it, including when repeating the same
+exercise.
 
 Audio remains solely in the existing transient capture/playback and bounded
 inference path. There are no files, browser storage, retry history, database or
@@ -56,8 +63,9 @@ node .agents/scripts/pr-size-preflight.mjs
 git diff --check
 ```
 
-- Web units cover association/replacement/clearing, frozen records, both
-  durations, response allowlisting and rejection of old attempts/results.
+- Web units cover association/replacement/clearing, frozen records, ASR
+  precedence over the capture record, attempt IDs without `randomUUID`, response
+  allowlisting and rejection of old attempts/results.
 - Java tests cover PCM-derived duration including fractional milliseconds and
   maximum length, `EMPTY` versus invalid bodies, safe failures and captured logs
   without synthetic transcript/provider diagnostic markers. Existing contracts
@@ -66,12 +74,12 @@ git diff --check
   empty results, retries, unchanged snapshots, empty browser storage, console
   privacy and lifecycle cleanup with late responses. The default build stays
   capture-only; preview tests use synthetic audio and intercepted ASR responses.
-  Two regressions dispatch `visibilitychange`/`pagehide` and resolve a pending
-  response in the same JavaScript task, using a fetch stub that deliberately
+  Three regressions dispatch `visibilitychange`/`pagehide` or click **Borrar**
+  and resolve a pending response in the same JavaScript task, using a fetch stub that deliberately
   ignores abort. They wait for the response continuation and React to settle,
   then assert an empty record, synchronous abort, discarded clip, unchanged
-  completed attempt and empty browser storage. Both failed before the fix and
-  passed after it.
+  completed attempt and empty browser storage. All failed before their fix and
+  pass after it.
 - The existing optional real whisper.cpp smoke remains separate and requires an
   explicitly started verified baseline; these changes need no model download.
 
@@ -82,14 +90,15 @@ git diff --check
   official SHA-256 before use. This is the original implementation's backend
   verification; the lifecycle follow-up changes only browser code/tests and
   this guide, so the unchanged backend suite was not rerun for that follow-up.
-- Node 24.21.0 / npm 12.2.0: **109 unit tests passed**; typecheck and production
-  build passed again after the lifecycle fix. Temporary tooling was prepared outside the repository; no
+- Node 24.21.0 / npm 11.19.0 (review-fix rerun): **111 unit tests passed**; typecheck and production
+  build passed again after the single-writer review fixes. Temporary tooling was prepared outside the repository; no
   dependency manifest, lockfile or verification checksum changed.
-- Chromium: the complete suite after the lifecycle fix had **141 passed**, zero
-  failures and **1 skipped** (the optional real whisper.cpp smoke, because no
-  explicitly started baseline/API was used). The two new regressions were also
-  checked in isolation: both failed with retained ASR records before the fix,
-  and both passed after synchronous lifecycle cancellation. Browser traces,
+- Chromium: the complete suite after the single-writer review fixes had
+  **142 passed**, zero failures and **1 skipped** (the optional real whisper.cpp
+  smoke, because no explicitly started baseline/API was used). The lifecycle
+  regressions were also checked in isolation: `visibilitychange`/`pagehide`
+  failed with retained ASR records before the lifecycle fix, and **Borrar**
+  failed without a synchronous abort before the single-writer fix; all pass now. Browser traces,
   screenshots and videos stayed off.
 - PR preflight: **20/40 changed files**, within the preferred 30-file scope;
   `git diff --check` passed. Existing CI remains the authoritative gate.

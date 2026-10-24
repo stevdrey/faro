@@ -178,7 +178,8 @@ test.describe('synthetic ASR preview', () => {
         stage: 'asr', status: 'result', hypothesis: { ...hypothesis, status: 'EMPTY', transcript: '' },
       })
       await panel(page).getByRole('checkbox', { name: 'Confirmo que esta grabación contiene solo audio sintético.' }).uncheck()
-      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
+      // Withdrawing the preview discards the ASR outcome but not the observation of the clip that still exists.
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({ stage: 'capture', status: 'ready' })
       await confirm(page)
       mode = 'malformed'
       await control(page, 'Transcribir prueba').click()
@@ -186,7 +187,7 @@ test.describe('synthetic ASR preview', () => {
       await expect(page.getByText('Terminaste', { exact: true })).toBeVisible()
     } finally { await page.context().close() }
   })
-  for (const event of ['visibilitychange', 'pagehide'] as const) {
+  for (const event of ['visibilitychange', 'pagehide', 'delete'] as const) {
     test(`${event} discards same-turn ASR completion before unmount`, async () => {
       const page = await syntheticPage()
       await page.addInitScript(result => {
@@ -211,7 +212,8 @@ test.describe('synthetic ASR preview', () => {
           if (event === 'visibilitychange') {
             Object.defineProperty(document, 'hidden', { configurable: true, value: true })
             document.dispatchEvent(new Event(event))
-          } else window.dispatchEvent(new Event(event))
+          } else if (event === 'pagehide') window.dispatchEvent(new Event(event))
+          else [...document.querySelectorAll('button')].find(button => button.textContent === 'Borrar')!.click()
           const pending = window.pendingSyntheticAsr!
           const aborted = pending.signal.aborted
           pending.resolve() // Same task as discard, before React's passive unmount cleanup can run.
@@ -245,7 +247,8 @@ test.describe('synthetic ASR preview', () => {
         await confirm(page)
         await control(page, 'Transcribir prueba').click()
         await started
-        await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
+        // Pending ASR has no outcome yet, so the ready clip's capture record stands.
+        await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({ stage: 'capture', status: 'ready' })
         if (action === 'cancel') await control(page, 'Cancelar transcripción').click()
         if (action === 'delete') await control(page, 'Borrar').click()
         if (action === 'replace') await control(page, 'Grabar de nuevo').click()
@@ -266,7 +269,9 @@ test.describe('synthetic ASR preview', () => {
         if (action === 'pagehide') await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
         if (action === 'unmount') await page.evaluate(() => window.unmountHarness())
         await deliver()
-        await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
+        if (action === 'cancel') {
+          await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({ stage: 'capture', status: 'ready' })
+        } else await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
         await expect(page.getByText('Transcribiendo localmente…', { exact: true })).toHaveCount(0)
         await expect(page.getByText('Transcripción lista, sin confirmar.', { exact: true })).toHaveCount(0)
         if (action === 'cancel') await expect(control(page, 'Escuchar mi grabación')).toBeVisible()

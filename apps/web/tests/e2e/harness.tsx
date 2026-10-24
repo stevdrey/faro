@@ -41,7 +41,7 @@ window.screenEvidence = { completions: [], frozen: false, resets: 0 }
 window.attemptEvidence = { current: null, speechRecord: null, deliveries: [], effects: 0 }
 
 function AppHarness() {
-  const completion = useAttemptCompletion(exerciseFor(initialSelection).exerciseId)
+  const completion = useAttemptCompletion<SpeechRecord>(exerciseFor(initialSelection).exerciseId)
   useEffect(() => {
     window.attemptEvidence.speechRecord = completion.state.speechRecord
     return () => { window.attemptEvidence.speechRecord = null }

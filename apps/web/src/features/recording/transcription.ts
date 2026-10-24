@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { ASR_SAMPLE_RATE, AudioError, normalizeClip } from './normalize.ts'
+import { AudioError, normalizeClip } from './normalize.ts'
 import type { AudioErrorCode } from './normalize.ts'
 
 export interface Transcription {
@@ -17,7 +17,6 @@ export interface TranscriptionState {
   readonly busy: boolean
   readonly result?: Transcription
   readonly error?: AudioErrorCode
-  readonly audioDurationMs?: number
 }
 export function readTranscription(value: unknown): Transcription {
   if (typeof value !== 'object' || !value) throw new AudioError('provider')
@@ -94,21 +93,18 @@ export class TranscriptionController {
     const abort = new AbortController()
     this.abort = abort
     this.show({ busy: true })
-    let audioDurationMs: number | undefined
-    const duration = () => audioDurationMs === undefined ? {} : { audioDurationMs }
     this.clearTimer = this.environment.schedule(() => {
       if (!current()) return
       this.cancel()
-      this.show({ busy: false, error: 'timeout', ...duration() })
+      this.show({ busy: false, error: 'timeout' })
     })
     try {
       const pcm = await this.environment.normalize(blob)
       if (!current()) return
-      audioDurationMs = Math.floor(pcm.byteLength / 2 * 1000 / ASR_SAMPLE_RATE)
       const result = await this.environment.send(pcm, abort.signal)
       if (current()) this.show({ busy: false, result })
     } catch (error) {
-      if (current()) this.show({ busy: false, error: error instanceof AudioError ? error.code : 'provider', ...duration() })
+      if (current()) this.show({ busy: false, error: error instanceof AudioError ? error.code : 'provider' })
     } finally {
       if (current()) { this.clearTimer(); this.abort = null }
     }

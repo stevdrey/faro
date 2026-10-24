@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { completionReducer, emptyCompletion } from '../../src/features/shared/attempt-completion.ts'
+import { completionReducer, emptyCompletion, newAttemptId } from '../../src/features/shared/attempt-completion.ts'
 import type { CompletedTrace, CompletionState } from '../../src/features/shared/attempt-completion.ts'
 import { attemptReducer, emptyAttempt } from '../../src/features/missing-addend/attempt.ts'
 import { emptySequenceAttempt, sequenceAttemptReducer } from '../../src/features/sequences/attempt.ts'
@@ -92,4 +92,14 @@ test('speech replaces one current record without changing the snapshot and stale
   assert.equal(completionReducer(next, update), next)
   assert.equal(completionReducer(next, { ...update, record: null }), next)
   assert.equal(complete(withSpeech, traces[0][1], 'blocks', 'ignored-id'), withSpeech)
+})
+
+test('attempt ids are random 128-bit values that do not require a secure context', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(crypto), 'randomUUID')!
+  Object.defineProperty(Object.getPrototypeOf(crypto), 'randomUUID', { configurable: true, value: undefined })
+  try {
+    const ids = Array.from({ length: 64 }, newAttemptId)
+    assert.ok(ids.every(id => /^[0-9a-f]{32}$/.test(id)))
+    assert.equal(new Set(ids).size, ids.length)
+  } finally { Object.defineProperty(Object.getPrototypeOf(crypto), 'randomUUID', descriptor) }
 })

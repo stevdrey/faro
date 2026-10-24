@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useState } from 'react'
 import type { RecordedClip } from './capture.ts'
-import { TranscriptionController } from './transcription.ts'
+import type { TranscriptionController } from './transcription.ts'
 import type { AudioErrorCode } from './normalize.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
-import { transcriptionRecord } from './speech-record.ts'
-import type { SpeechRecord } from './speech-record.ts'
 
 const messages: Record<AudioErrorCode, string> = {
   unsupported: 'Este formato de audio no se puede transcribir aquí. Podés volver a grabar o seguir con la actividad.',
@@ -16,30 +14,14 @@ const messages: Record<AudioErrorCode, string> = {
   provider: 'No se pudo obtener una transcripción. Podés reintentar o seguir con la actividad.',
 }
 
-/** Explicitly enabled synthetic preview using FARO-040 admission; not an adult review or consent gate. */
-export function SyntheticTranscription({ clip, attemptId, recordSpeech }: {
-  clip: RecordedClip; attemptId: string; recordSpeech: (attemptId: string, record: SpeechRecord | null) => void
-}) {
-  const [controller] = useState(() => new TranscriptionController())
+/**
+ * Explicitly enabled synthetic preview using FARO-040 admission; not an adult review or consent gate.
+ * The recorder owns the controller and cancels it synchronously whenever the clip is dropped.
+ */
+export function SyntheticTranscription({ clip, controller }: { clip: RecordedClip; controller: TranscriptionController }) {
   const [state, setState] = useState(controller.state)
   const [confirmed, setConfirmed] = useState(false)
-  useEffect(() => {
-    const unsubscribe = controller.subscribe(next => {
-      setState(next)
-      recordSpeech(attemptId, transcriptionRecord(attemptId, clip.durationMs, next))
-    })
-    // Invalidate in the event handler: the parent's unmount may happen after a response continuation.
-    const clear = () => controller.cancel()
-    const hidden = () => { if (document.hidden) clear() }
-    document.addEventListener('visibilitychange', hidden)
-    window.addEventListener('pagehide', clear)
-    return () => {
-      document.removeEventListener('visibilitychange', hidden)
-      window.removeEventListener('pagehide', clear)
-      unsubscribe()
-      controller.cancel()
-    }
-  }, [controller, attemptId, clip, recordSpeech])
+  useEffect(() => controller.subscribe(setState), [controller])
   return <div className="synthetic-transcription">
     <p>Prueba técnica: solo audio sintético, con procesamiento local. Esta vista previa no habilita el uso con audio infantil.</p>
     <label><input type="checkbox" checked={confirmed} onChange={event => {

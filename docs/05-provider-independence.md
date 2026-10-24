@@ -153,11 +153,13 @@ The transport cannot attest an arbitrary service running on that local port.
 Action contracts and the mathematical snapshot remain unchanged. FARO-013 adds
 a random browser-local attempt identifier and keeps one separate immutable
 voice record in memory. A valid response includes the exact unconfirmed
-hypothesis and provenance; technical errors retain only stable codes and known
-durations, without model/latency placeholders. Client decoding projects only
+hypothesis and provenance; technical errors retain only stable codes and the
+recording duration, without client-computed PCM duration or model/latency
+placeholders. Client decoding projects only
 allowlisted response fields. Permission/empty-media capture errors stay local
 and differ from an ASR `EMPTY` hypothesis. Starting a retry replaces the record;
-cancel/delete, context changes, hidden/leaving and unmount clear it and invalidate
+cancelling ASR returns to the ready clip's capture record. Delete, re-record,
+context changes, hidden/leaving and unmount clear it and synchronously invalidate
 late results. There is no durable storage, retry history or general transcript
 logging; FARO-025 owns future session persistence. Browser abort does not promise
 that inference already accepted stops immediately; backend deadlines still apply.
