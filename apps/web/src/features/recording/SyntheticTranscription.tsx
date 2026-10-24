@@ -21,15 +21,10 @@ export function SyntheticTranscription({ clip }: { clip: RecordedClip }) {
   const [confirmed, setConfirmed] = useState(false)
   useEffect(() => {
     const unsubscribe = controller.subscribe(setState)
-    const clear = () => controller.cancel()
-    const hidden = () => { if (document.hidden) clear() }
-    document.addEventListener('visibilitychange', hidden)
-    window.addEventListener('pagehide', clear)
+    // Hiding/pagehide cancel the parent capture, which drops the clip and unmounts this preview.
     return () => {
       unsubscribe()
-      clear()
-      document.removeEventListener('visibilitychange', hidden)
-      window.removeEventListener('pagehide', clear)
+      controller.cancel()
     }
   }, [controller])
   return <div className="synthetic-transcription">

@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {} from './harness.tsx'
 
+// The synthetic preview server (see playwright.config.ts); the default suite stays on 5173 with it disabled.
+const preview = 'http://127.0.0.1:5174'
 const harness = '/tests/e2e/harness.html?activity=app'
 const panel = (page: Page) => page.getByRole('region', { name: 'Contame cómo lo hiciste' })
 const control = (page: Page, name: string) => panel(page).getByRole('button', { name, exact: true })
@@ -35,7 +37,7 @@ test.describe('synthetic ASR preview', () => {
   })
   test.afterAll(async () => browser.close())
   async function syntheticPage(useBrowserMicrophone = false) {
-    const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5173', permissions: ['microphone'] })
+    const context = await browser.newContext({ baseURL: preview, permissions: ['microphone'] })
     const page = await context.newPage()
     if (!useBrowserMicrophone) await page.addInitScript(() => {
       // Lifecycle tests use a generated stream and real MediaRecorder without shared microphone-device state.
@@ -204,7 +206,7 @@ test('optional real browser → Faro API → pinned local whisper.cpp smoke', as
     execFileSync('espeak-ng', ['-v', manifest.sample.voice, '-s', String(manifest.sample.words_per_minute), '-p', String(manifest.sample.pitch), '-w', original, manifest.sample.text], { stdio: 'ignore' })
     execFileSync('ffmpeg', ['-nostdin', '-hide_banner', '-loglevel', 'error', '-i', original, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_s16le', wav], { stdio: 'ignore' })
     browser = await playwright.chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-audio-capture=${wav}`] })
-    const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5173', permissions: ['microphone'] })
+    const context = await browser.newContext({ baseURL: preview, permissions: ['microphone'] })
     const page = await context.newPage()
     await prepare(page, 5)
     await confirm(page)

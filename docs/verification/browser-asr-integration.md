@@ -28,20 +28,25 @@ node .agents/scripts/pr-size-preflight.mjs
 - Java: preview-off configuration, explicit adapter selection/provenance,
   loopback binding, PCM limits including unknown-length requests, safe error
   responses, WAV fields/sample bytes, Spanish options, blank/malformed/oversized
-  results, deadlines including stalled response bodies, overlap, redirects and
-  downtime.
-- Web units: PCM endianness, clipping, silence, stereo averaging, duration/size
-  limits, invalid samples/channels, result validation, duplicate activation,
+  results (oversized → `PROVIDER_ERROR`), overlap rejected until an abandoned
+  exchange's runtime replies, drain limit for stalled response bodies,
+  redirects and downtime. The guard's own tests cover the inference deadline.
+  Shared limits derive from one sample-rate/duration pair.
+- Web units: PCM endianness, clipping, silence, stereo/multi-channel averaging,
+  trimming the 30 s auto-stop overrun, duration/size limits, invalid
+  samples/channels, result validation, duplicate activation,
   cancellation during decoding/upload, deadlines and rejection of late results
   without exposing vendor exception text.
 - Chromium: real MediaRecorder synthetic input, native decoding, normalized PCM
   transport, explicit activation, unsupported decoding without upload, neutral
   unavailable/empty/malformed results and retry, unchanged completed attempts,
-  empty storage and lifecycle/context cleanup. Playwright enables the web
-  preview; default tests intercept transport and need no API/model. Browser
+  empty storage and lifecycle/context cleanup. Playwright starts two web servers:
+  the ordinary suite runs on 5173 with the preview disabled (and asserts that
+  the default build offers no transcription), while `transcription.spec.ts`
+  uses an owned server on 5174 with `VITE_FARO_SYNTHETIC_ASR=true`. Preview
+  tests intercept transport and need no API/model. Browser
   traces/screenshots/videos stay disabled. Existing CI API/web jobs run these.
-  Keep port 5173 free: the suite owns its web server to ensure that the preview
-  flag matches the configuration under test.
+  Keep port 5174 free; outside CI, an existing default server on 5173 is reused.
   Lifecycle cases use a generated Web Audio stream with real MediaRecorder;
   the transport case and optional smoke use Chromium's fake microphone. Native
   resampling is checked for exact sample count and a small filter-gain tolerance;
@@ -57,7 +62,7 @@ python3 infra/whisper/baseline.py start
 gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true'
 ```
 
-With port 5173 free:
+With port 5174 free:
 
 ```bash
 FARO_REAL_ASR_SMOKE=true npm --prefix apps/web run test:e2e -- transcription.spec.ts --grep 'optional real browser'
@@ -93,21 +98,21 @@ upload a cancelled clip.
 
 Local verification on **2026-10-23 (America/Costa_Rica)**:
 
-- Java: **493 tests passed**, zero failures/errors/skips.
-- Web units: **104 passed**. Type checks and production build passed with the
-  preview disabled by default.
-- Browser regression: all **125 existing tests passed** in the full run. All
-  **13 preview tests passed** in the final targeted run after correcting the
-  native-filter tolerance and isolating lifecycle streams. The optional real
-  smoke is skipped in that default suite and was run separately below.
-  The isolated cancellation case also passed **3/3** repeated runs.
-- Real browser → API → pinned whisper.cpp smoke: **passed**. Five seconds of
+- Java: **493 tests passed**, zero failures/errors/skips; the adapter tests also
+  passed **3/3** repeated runs.
+- Web units: **105 passed**. Type checks and production build passed with the
+  preview disabled by default (the bundle contains no preview controls).
+- Browser: the full run passed **138 tests** (125 default-build tests and 13
+  preview tests); the optional real smoke is skipped there.
+- Real browser → API → pinned whisper.cpp smoke: **passed** before the review
+  fixes (bounded overrun trimming, permit release and the two-server Playwright
+  setup); it was not re-run afterwards. Five seconds of
   browser-recorded synthetic input yielded `TRANSCRIBED`, effective language
   `es`, expected model/revision, **1,090 ms** adapter latency and **73 transcript
   characters**. No exact-word accuracy claim is made and no transcript is
   retained in this summary. Temporary WAVs, test browsers, API and baseline
   started for verification were cleaned up.
-- PR size preflight: **24/40 files**, within the ordinary 0–30 range;
+- PR size preflight: **25/40 files**, within the ordinary 0–30 range;
   `git diff --check` passed. No dependency manifest/lockfile changed.
 
 Environment: Node **24.21.0**, npm CLI **12.2.0**, JDK **27**, Chromium provided by

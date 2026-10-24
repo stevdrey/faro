@@ -22,7 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @ConditionalOnProperty(name = "faro.speech.synthetic-test.enabled", havingValue = "true")
 public class TranscriptionController {
-    private static final int MAX_BYTES = 16_000 * 2 * 30;
+    private static final int SAMPLE_RATE_HZ = 16_000;
+    private static final Duration MAX_AUDIO = Duration.ofSeconds(30);
+    private static final int MAX_BYTES = Math.toIntExact(SAMPLE_RATE_HZ * 2 * MAX_AUDIO.toSeconds());
     private final SpeechRecognizer recognizer;
     private final String language;
 
@@ -42,8 +44,8 @@ public class TranscriptionController {
             var pcm = request.getInputStream().readNBytes(MAX_BYTES + 1);
             if (pcm.length > MAX_BYTES) return error(HttpStatus.CONTENT_TOO_LARGE, "AUDIO_LIMIT");
             if (pcm.length == 0 || pcm.length % 2 != 0) return error(HttpStatus.BAD_REQUEST, "INVALID_AUDIO");
-            var hypothesis = recognizer.transcribe(new SpeechRequest(pcm, 16_000, language,
-                    UUID.randomUUID().toString(), Duration.ofSeconds(30)));
+            var hypothesis = recognizer.transcribe(new SpeechRequest(pcm, SAMPLE_RATE_HZ, language,
+                    UUID.randomUUID().toString(), MAX_AUDIO));
             return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(payload(hypothesis));
         } catch (SpeechFailure failure) {
             return switch (failure.code()) {

@@ -17,12 +17,17 @@ export default defineConfig({
     screenshot: 'off',
     video: 'off',
   },
-  webServer: {
+  webServer: [{
+    // The default build: the synthetic ASR preview stays disabled.
     command: 'npm run dev',
-    // Exercises the opt-in synthetic preview; normal dev/build commands keep it disabled.
-    env: { VITE_FARO_SYNTHETIC_ASR: 'true' },
     url: 'http://127.0.0.1:5173',
-    // Own the server so the compile-time synthetic preview flag is deterministic.
+    reuseExistingServer: !process.env.CI,
+  }, {
+    // Only transcription.spec.ts uses this opt-in synthetic preview server.
+    command: 'npm run dev -- --port 5174',
+    env: { VITE_FARO_SYNTHETIC_ASR: 'true' },
+    url: 'http://127.0.0.1:5174',
+    // Own the server so the build-time preview flag is deterministic.
     reuseExistingServer: false,
-  },
+  }],
 })

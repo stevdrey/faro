@@ -29,12 +29,12 @@ class WhisperCppRecognizerTests {
     private final AtomicReference<String> response = new AtomicReference<>("{\"text\":\"seis\"}");
     private final AtomicReference<byte[]> received = new AtomicReference<>();
     private final AtomicReference<String> contentType = new AtomicReference<>();
-    private int status = 200;
-    private Duration timeout = Duration.ofSeconds(2);
+    private volatile int status = 200;
+    private Duration drainLimit = Duration.ofSeconds(2);
     private final CompletableFuture<Void> release = new CompletableFuture<>();
     private final CompletableFuture<Void> entered = new CompletableFuture<>();
-    private boolean stall;
-    private boolean stallBody;
+    private volatile boolean stall;
+    private volatile boolean stallBody;
 
     @BeforeEach
     void start() throws Exception {
@@ -59,7 +59,7 @@ class WhisperCppRecognizerTests {
     void stop() { release.complete(null); server.stop(0); }
     private WhisperCppRecognizer recognizer() {
         return new WhisperCppRecognizer(URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/inference"),
-                timeout, "synthetic-model", "revision");
+                Duration.ofSeconds(2), drainLimit, "synthetic-model", "revision");
     }
     private SpeechRequest request(byte[] bytes) {
         return new SpeechRequest(bytes, 16_000, "es-CR", "synthetic", Duration.ofSeconds(30));
@@ -110,23 +110,56 @@ class WhisperCppRecognizerTests {
                 });
     }
     @Test
-    void oversizedChunkedResponseIsBounded() {
+    void oversizedChunkedResponseIsBoundedAsAProviderError() {
         response.set("x".repeat(70_000));
-        assertThatThrownBy(() -> recognizer().transcribe(request(new byte[2]))).isInstanceOf(SpeechFailure.class);
+        assertThatThrownBy(() -> recognizer().transcribe(request(new byte[2])))
+                .isInstanceOfSatisfying(SpeechFailure.class, failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.PROVIDER_ERROR));
     }
     @Test
-    void timeoutAndConcurrentRequestsAreUnavailableWithoutQueuingOrFallback() throws Exception {
+    void guardInterruptKeepsThePermitUntilTheRuntimeRepliesSoOverlapIsNotQueued() throws Exception {
         stall = true;
-        timeout = Duration.ofMillis(300);
         var recognizer = recognizer();
-        var first = CompletableFuture.runAsync(() -> {
-            assertThatThrownBy(() -> recognizer.transcribe(request(new byte[2])))
-                    .isInstanceOfSatisfying(SpeechFailure.class, failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.TIMEOUT));
+        var outcome = new CompletableFuture<SpeechFailure.Code>();
+        var caller = Thread.ofVirtual().start(() -> {
+            try {
+                recognizer.transcribe(request(new byte[2]));
+                outcome.complete(null);
+            } catch (SpeechFailure failure) {
+                outcome.complete(failure.code());
+            }
         });
         entered.get(2, TimeUnit.SECONDS);
+        caller.interrupt(); // What GuardedSpeechRecognizer does at its deadline.
+        assertThat(outcome.get(2, TimeUnit.SECONDS)).isEqualTo(SpeechFailure.Code.UNAVAILABLE);
+        // The runtime is still decoding the abandoned clip: a second clip is rejected, not queued behind it.
         assertThatThrownBy(() -> recognizer.transcribe(request(new byte[2])))
                 .isInstanceOfSatisfying(SpeechFailure.class, failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.UNAVAILABLE));
-        first.get(3, TimeUnit.SECONDS);
+        stall = false;
+        release.complete(null);
+        assertThat(awaitTranscription(recognizer)).isEqualTo(SpeechStatus.TRANSCRIBED);
+    }
+    @Test
+    void drainLimitAbortsAStalledResponseBodyAndFreesThePermit() throws Exception {
+        stallBody = true;
+        drainLimit = Duration.ofMillis(300);
+        var recognizer = recognizer();
+        var work = CompletableFuture.runAsync(() -> assertThatThrownBy(() -> recognizer.transcribe(request(new byte[2])))
+                .isInstanceOfSatisfying(SpeechFailure.class, failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.TIMEOUT)));
+        work.get(3, TimeUnit.SECONDS);
+        stallBody = false;
+        assertThat(awaitTranscription(recognizer)).isEqualTo(SpeechStatus.TRANSCRIBED);
+    }
+    /** The permit is released asynchronously when the abandoned exchange completes. */
+    private SpeechStatus awaitTranscription(WhisperCppRecognizer recognizer) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (true) {
+            try {
+                return recognizer.transcribe(request(new byte[2])).status();
+            } catch (SpeechFailure failure) {
+                if (failure.code() != SpeechFailure.Code.UNAVAILABLE || System.nanoTime() > deadline) throw failure;
+                Thread.sleep(20);
+            }
+        }
     }
     @Test
     void redirectsAndServerFailuresAreNotFollowed() {
@@ -138,20 +171,11 @@ class WhisperCppRecognizerTests {
         }
     }
     @Test
-    void deadlineAlsoBoundsAStalledResponseBody() throws Exception {
-        stallBody = true;
-        timeout = Duration.ofMillis(300);
-        var work = CompletableFuture.runAsync(() -> {
-            assertThatThrownBy(() -> recognizer().transcribe(request(new byte[2])))
-                    .isInstanceOfSatisfying(SpeechFailure.class, failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.TIMEOUT));
-        });
-        work.get(3, TimeUnit.SECONDS);
-    }
-    @Test
-    void unavailableRuntimeAndUnsupportedRateAreTechnicalFailures() {
+    void unavailableRuntimeIsATechnicalFailureAndCapabilitiesAreLeftToTheGuard() {
         server.stop(0);
         assertThatThrownBy(() -> recognizer().transcribe(request(new byte[2]))).isInstanceOf(SpeechFailure.class);
-        assertThatThrownBy(() -> recognizer().transcribe(new SpeechRequest(new byte[2], 8000, "es-CR", "synthetic", Duration.ofSeconds(1))))
-                .isInstanceOfSatisfying(SpeechFailure.class, failure -> assertThat(failure.code()).isEqualTo(SpeechFailure.Code.INCOMPATIBLE_REQUEST));
+        // GuardedSpeechRecognizer rejects unsupported rates before any adapter is called.
+        assertThat(recognizer().capabilities().sampleRatesHz()).containsExactly(16_000);
+        assertThat(recognizer().capabilities().languageTags()).containsExactly("es-CR");
     }
 }

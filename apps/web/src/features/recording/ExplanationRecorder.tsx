@@ -9,7 +9,7 @@ import { clips } from '../guidance/clips.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
 import { SyntheticTranscription } from './SyntheticTranscription.tsx'
 
-declare const __FARO_SYNTHETIC_ASR__: boolean
+const synthetic = import.meta.env.VITE_FARO_SYNTHETIC_ASR === 'true'
 
 const messages: Record<CaptureError, string> = {
   permission: 'El micrófono no tiene permiso. Pedile ayuda a la persona adulta o seguí jugando.',
@@ -110,9 +110,9 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
       <p className="recording-timer" role="timer" aria-label="Tiempo de grabación">{Math.floor(state.elapsedMs / 1000)} / 30 s</p>
       {state.phase === 'recording' && <p>{clips.recordingStop}</p>}
       {state.clip && <RecordedPlayback clip={state.clip} />}
-      {state.clip && __FARO_SYNTHETIC_ASR__ && <SyntheticTranscription clip={state.clip} />}
+      {state.clip && synthetic && <SyntheticTranscription clip={state.clip} />}
     </>}
-    <p className="privacy-note">El audio queda en memoria. Se borra al cancelar, borrar, repetir, reiniciar, cambiar de actividad, ocultar o cerrar la página. {__FARO_SYNTHETIC_ASR__
+    <p className="privacy-note">El audio queda en memoria. Se borra al cancelar, borrar, repetir, reiniciar, cambiar de actividad, ocultar o cerrar la página. {synthetic
       ? 'Solo «Transcribir prueba» envía el audio normalizado al servidor local para transcribirlo; no se guarda. Usá solo audio sintético.'
       : 'No se envía ni se transcribe.'}</p>
   </section>

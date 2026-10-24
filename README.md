@@ -230,7 +230,7 @@ VITE_FARO_SYNTHETIC_ASR=true npm --prefix apps/web run dev
 After recording synthetic audio, confirm its synthetic origin and explicitly
 choose **Transcribir prueba**. The browser decodes its native format with Web Audio,
 downmixes to mono and normalizes to PCM16 little-endian at 16 kHz, for up to
-30 seconds. Unsupported codecs, invalid/oversized audio, unavailable inference
+30 seconds (the auto-stop's small overrun is trimmed). Unsupported codecs, invalid/oversized audio, unavailable inference
 and timeouts offer retry while preserving the completed visual attempt.
 The API forwards audio through `SpeechRecognizer`; only the adapter knows the
 whisper.cpp WAV/multipart protocol. Results remain **unconfirmed hypotheses**

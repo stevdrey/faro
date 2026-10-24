@@ -367,6 +367,10 @@ test('real Chromium captures and plays synthetic microphone audio without upload
     // Wait for measured capture time, without using a real microphone or saved fixture.
     await expect(panel(page).getByLabel('Tiempo de grabación')).toHaveText('1 / 30 s')
     await control(page, 'Detener grabación').click()
+    // The default build (synthetic ASR preview off) offers no transcription and states that nothing is sent.
+    await expect(control(page, 'Escuchar mi grabación')).toBeVisible()
+    await expect(control(page, 'Transcribir prueba')).toHaveCount(0)
+    await expect(panel(page).locator('.privacy-note')).toContainText('No se envía ni se transcribe.')
     await control(page, 'Escuchar mi grabación').click()
     const player = panel(page).locator('.recording-playback audio')
     await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.currentTime > 0)).toBe(true)

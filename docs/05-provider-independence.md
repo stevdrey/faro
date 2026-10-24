@@ -108,17 +108,23 @@ Success JSON contains `schemaVersion: 1` and the existing hypothesis fields:
 `PROVIDER_ERROR`, 503 `UNAVAILABLE` or 504 `TIMEOUT`. The browser offers technical
 retry states and never grades the attempt.
 
-Web Audio decodes the complete recording and resamples to 16 kHz; one or two
+Web Audio decodes the complete recording and resamples to 16 kHz; all
 channels are averaged and saturated into PCM16. Encoded input is limited to
-8 MiB and decoded audio to 30 seconds. Codec support depends on the browser;
+8 MiB. The 30-second auto-stop and codec padding overrun slightly, so up to one
+extra second of decoded audio is trimmed to exactly 30 seconds; longer audio is
+rejected. Codec support depends on the browser;
 there is no codec download or conversion fallback. The browser applies a
 15-second decode/upload deadline; backend inference defaults to 8 seconds.
 
 The adapter wraps PCM in an in-memory WAV and posts `file`, `language=es`,
 `response_format=json`, `temperature=0.0`, `translate=false` to the fixed literal
 `http://127.0.0.1:8085/inference`. It bypasses proxies, rejects redirects and
-bounds response bytes (64 KiB), text (16,000 characters), the whole inference
-exchange and concurrent inference (one, with overlap unavailable).
+bounds response bytes (64 KiB, oversized → `PROVIDER_ERROR`), text (16,000
+characters) and concurrent inference: one, with overlap unavailable. The caller's
+inference deadline is the shared `GuardedSpeechRecognizer` timeout. whisper.cpp
+keeps decoding after a client gives up, so the adapter holds its single permit
+until the runtime replies, rather than queuing another clip behind it; a drain
+limit (4× the timeout, at least 60 s) aborts a runtime that never answers.
 Empty PCM avoids the runtime; blank text becomes `EMPTY`; malformed JSON and
 vendor failures become safe `SpeechFailure` codes. No alternate provider is tried.
 Effective language is **`es`**: the runtime does not distinguish Costa Rican
