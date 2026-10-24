@@ -1,0 +1,120 @@
+# Browser audio → ASR verification (FARO-012 / issue #16)
+
+## Scope and privacy boundary
+
+This delivers the technical browser → PCM16 → `SpeechRecognizer` → whisper.cpp
+path. **The preview stays off by default and is only for operator-declared
+synthetic tests.** FARO-040 / #21 remains a separate, open dependency before
+child audio. The confirmation cannot determine audio origin and does not
+implement the general `LOCAL_ONLY` policy or protected adult review.
+
+Ordinary startup, including `dev`, retains browser-only recording. Enabling only
+the web preview cannot enable the API route; enabling only the API cannot cause
+automatic uploads. The API requires loopback binding. The adapter has a fixed
+literal-loopback endpoint, no proxy, redirects, runtime downloads or cloud
+fallback. Use the managed baseline with its reviewed manifest, verified model
+and disabled Docker logging. No dependency, weights or audio fixture is added.
+
+## Automated checks
+
+```bash
+gradle -p services/api test
+npm --prefix apps/web run test:unit
+npm --prefix apps/web run build
+npm --prefix apps/web run test:e2e
+node .agents/scripts/pr-size-preflight.mjs
+```
+
+- Java: preview-off configuration, explicit adapter selection/provenance,
+  loopback binding, PCM limits including unknown-length requests, safe error
+  responses, WAV fields/sample bytes, Spanish options, blank/malformed/oversized
+  results, deadlines including stalled response bodies, overlap, redirects and
+  downtime.
+- Web units: PCM endianness, clipping, silence, stereo averaging, duration/size
+  limits, invalid samples/channels, result validation, duplicate activation,
+  cancellation during decoding/upload, deadlines and rejection of late results
+  without exposing vendor exception text.
+- Chromium: real MediaRecorder synthetic input, native decoding, normalized PCM
+  transport, explicit activation, unsupported decoding without upload, neutral
+  unavailable/empty/malformed results and retry, unchanged completed attempts,
+  empty storage and lifecycle/context cleanup. Playwright enables the web
+  preview; default tests intercept transport and need no API/model. Browser
+  traces/screenshots/videos stay disabled. Existing CI API/web jobs run these.
+  Keep port 5173 free: the suite owns its web server to ensure that the preview
+  flag matches the configuration under test.
+  Lifecycle cases use a generated Web Audio stream with real MediaRecorder;
+  the transport case and optional smoke use Chromium's fake microphone. Native
+  resampling is checked for exact sample count and a small filter-gain tolerance;
+  PCM encoding itself has exact unit assertions.
+
+## Optional real end-to-end smoke
+
+Requires the existing local baseline setup; no test downloads models or starts
+Docker implicitly. Start the baseline and API in separate terminals:
+
+```bash
+python3 infra/whisper/baseline.py start
+gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true'
+```
+
+With port 5173 free:
+
+```bash
+FARO_REAL_ASR_SMOKE=true npm --prefix apps/web run test:e2e -- transcription.spec.ts --grep 'optional real browser'
+```
+
+The test generates the manifest's Faro-authored Spanish phrase with existing
+eSpeak NG/FFmpeg tools in a private temporary directory. Chromium receives this
+synthetic 48 kHz stereo WAV through its fake microphone, records five seconds
+with **real MediaRecorder**, and uses application controls to normalize/send it
+through the real API and runtime. Success requires nonblank recognized text,
+expected model/revision and effective `es` language, without asserting word
+accuracy. Only status, engine, language, latency and character count are printed;
+no transcript/audio is retained as verification evidence. Cleanup closes the
+browser and removes generated WAVs on success/errors. This smoke is explicitly
+skipped during ordinary CI.
+
+Stop the API with Ctrl+C, then `python3 infra/whisper/baseline.py stop`.
+For manual synthetic operation, start the web server with
+`VITE_FARO_SYNTHETIC_ASR=true npm --prefix apps/web run dev`, complete an exercise,
+record **synthetic playback only**, confirm synthetic origin and choose
+**Transcribir prueba**. Optional details label the transcript unconfirmed.
+Delete/re-record/restart/hide clears it. Do not use a child's voice.
+Firefox/Safari codec compatibility and physical-device usability remain manual;
+unsupported formats must leave the activity usable.
+
+## Verification results
+
+Memory cleanup discards references; browser/JVM
+garbage collectors control reclamation. HTTP cancellation invalidates results
+without promising immediate interruption of already accepted inference.
+Web Audio decoding is not abortable; its late completion is ignored and cannot
+upload a cancelled clip.
+
+Local verification on **2026-10-23 (America/Costa_Rica)**:
+
+- Java: **493 tests passed**, zero failures/errors/skips.
+- Web units: **104 passed**. Type checks and production build passed with the
+  preview disabled by default.
+- Browser regression: all **125 existing tests passed** in the full run. All
+  **13 preview tests passed** in the final targeted run after correcting the
+  native-filter tolerance and isolating lifecycle streams. The optional real
+  smoke is skipped in that default suite and was run separately below.
+  The isolated cancellation case also passed **3/3** repeated runs.
+- Real browser → API → pinned whisper.cpp smoke: **passed**. Five seconds of
+  browser-recorded synthetic input yielded `TRANSCRIBED`, effective language
+  `es`, expected model/revision, **1,090 ms** adapter latency and **73 transcript
+  characters**. No exact-word accuracy claim is made and no transcript is
+  retained in this summary. Temporary WAVs, test browsers, API and baseline
+  started for verification were cleaned up.
+- PR size preflight: **24/40 files**, within the ordinary 0–30 range;
+  `git diff --check` passed. No dependency manifest/lockfile changed.
+
+Environment: Node **24.21.0**, npm CLI **12.2.0**, JDK **27**, Chromium provided by
+the locked Playwright installation. Local Gradle is **9.8.2**, while repository CI
+pins **9.8.1**; that exact CI Gradle version was not exercised locally. No remote
+CI or protected branch setting is claimed. FARO-040 / #21 remains unimplemented
+by this change, so child-audio enablement remains pending.
+
+References: [Web Audio complete-file decoding and resampling](https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/decodeAudioData)
+and the [pinned whisper.cpp server protocol](https://github.com/ggml-org/whisper.cpp/blob/231638a0717b7822784297e5980965ffcec05810/examples/server/server.cpp).

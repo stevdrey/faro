@@ -26,6 +26,14 @@ dependencies {
 
 tasks.withType<Test> { useJUnitPlatform() }
 
+// Reuse the independently reviewed baseline provenance; never package/download model weights.
+tasks.processResources {
+    from("../../infra/whisper/artifacts.json") {
+        into("speech")
+        rename { "whisper-artifacts.json" }
+    }
+}
+
 // Keep public examples in one place for API tests and future clients.
 tasks.processTestResources {
     from("../../contracts/exercises") {

@@ -57,7 +57,7 @@ exchanges, and never solves or grades an exercise. The local subtraction screen
 emits v2; existing block/sequence screens still emit v1. No attempt endpoint or
 storage is introduced.
 
-`SpeechRecognizer` and its immutable `SpeechRequest`, `SpeechHypothesis(transcript, languageTag, engineId, modelId, modelVersion, latencyMs, status)`, capabilities and provider configuration are implemented in `speech`. A hypothesis is only what an engine thinks was said; it contains no segments or confidence scores. The fake returns empty hypotheses and is selected only by the `dev` profile or tests; configuration requires an explicit provider and selects explicitly registered adapter factories without fallback. Real whisper.cpp integration and the `LOCAL_ONLY` enforcement gate remain future work. See [ASR contracts and provider selection](05-provider-independence.md).
+`SpeechRecognizer` and its immutable `SpeechRequest`, `SpeechHypothesis(transcript, languageTag, engineId, modelId, modelVersion, latencyMs, status)`, capabilities and provider configuration are implemented in `speech`. A hypothesis is only what an engine thinks was said; it contains no segments or confidence scores. The fake returns empty hypotheses and is selected only by the `dev` profile or tests; configuration requires an explicit provider and selects explicitly registered adapter factories without fallback. FARO-012 adds a default-disabled synthetic-only whisper.cpp integration. FARO-040 remains the required privacy gate before child audio. See [ASR contracts and provider selection](05-provider-independence.md).
 
 `AssessmentResult(actionMathState, strategyEvidenceState, nextAction, ruleIds, assessmentVersion)` is an immutable, provider-independent result with three independent state axes and minimal provenance. `assessment.api.AssessmentResultPayload` adds `schemaVersion: 1`; its strict codec and matching readonly web types are documented in the [version 1 assessment contract and shared fixtures](../contracts/assessments/v1/README.md). Empty rule lists are valid; the rule catalog, evidence references, evaluator, and feedback policy remain future work. Constructing or decoding a result does not choose states or enforce cross-axis policy.
 
@@ -71,9 +71,14 @@ Stop finalizes one clip; cancel, restart, context changes, hidden/leaving pages
 and unmount discard it and release hardware, listeners, timers and playback URLs.
 An application-scoped audio coordinator serializes guidance/clip playback and
 excludes playback throughout microphone permission, capture and finalization.
-There is no audio transport, persistence, normalization or ASR integration;
-FARO-012 remains responsible for normalization and adapter transport behind the
-FARO-040 backend privacy gate. See [capture verification](verification/browser-voice-capture.md).
+Ordinary capture adds no audio transport, persistence or ASR. FARO-012 separately
+provides an opt-in synthetic preview: Web Audio normalization → bounded PCM API →
+`SpeechRecognizer` → local whisper.cpp WAV/multipart adapter. Only an explicit
+transcription activation sends a clip. Results remain transient, unconfirmed and
+outside assessment or the completed snapshot. The preview does not implement
+FARO-040; child audio remains blocked on that dependency. See
+[capture verification](verification/browser-voice-capture.md) and
+[integration verification](verification/browser-asr-integration.md).
 
 ## Request flow (planned)
 

@@ -1,6 +1,11 @@
 server:
   address: 127.0.0.1
   port: 8080
+spring:
+  servlet:
+    multipart:
+      # Raw bounded PCM only. Do not let unsupported multipart uploads create temporary audio files.
+      enabled: false
 management:
   endpoints:
     web:
@@ -10,9 +15,11 @@ management:
     health:
       show-details: never
 
-# No audio endpoint or real ASR transport. FARO-040 must enforce LOCAL_ONLY before integration.
+# FARO-040 must enforce LOCAL_ONLY before child-audio integration. The synthetic preview stays off.
 # faro.speech.provider has no default; startup fails until a deployment or the dev profile selects one.
 faro:
   speech:
     language: es-CR
     timeout: 8s
+    synthetic-test:
+      enabled: false

@@ -19,7 +19,10 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev',
+    // Exercises the opt-in synthetic preview; normal dev/build commands keep it disabled.
+    env: { VITE_FARO_SYNTHETIC_ASR: 'true' },
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
+    // Own the server so the compile-time synthetic preview flag is deterministic.
+    reuseExistingServer: false,
   },
 })
