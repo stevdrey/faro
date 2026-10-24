@@ -21,7 +21,10 @@ public class SpeechConfiguration {
         return new FakeAsrProvider();
     }
 
-    /** Provider ids and language tags are configuration, not child data, so failures may name them. */
+    /**
+     * Provider ids and language tags are configuration, not child data, so failures may name them.
+     * {@code privacy} is unread but load-bearing: injecting it binds and validates the policy before any factory runs.
+     */
     @Bean
     SpeechRecognizer speechRecognizer(SpeechProperties properties, PrivacyProperties privacy,
                                       List<AsrProvider> providers) {
@@ -56,10 +59,15 @@ public class SpeechConfiguration {
         AsrCapabilities capabilities;
         try {
             capabilities = recognizer.capabilities();
-            LocalOnlyPolicy.requireLocal(capabilities);
-        } catch (SpeechFailure | RuntimeException invalidCapabilities) {
-            throw new IllegalStateException("LOCAL_ONLY rejected ASR capabilities",
+        } catch (RuntimeException vendorFailure) {
+            // Deliberately dropped: vendor messages may carry paths or other sensitive details.
+            throw new IllegalStateException("ASR provider '" + config.provider() + "' failed to report capabilities",
                     new SpeechFailure(SpeechFailure.Code.PROVIDER_ERROR));
+        }
+        try {
+            LocalOnlyPolicy.requireLocal(capabilities);
+        } catch (SpeechFailure remoteCapabilities) {
+            throw new IllegalStateException("LOCAL_ONLY rejected ASR capabilities", remoteCapabilities);
         }
         if (!capabilities.languageTags().contains(config.language())) {
             throw new IllegalStateException("Configured language '" + config.language()

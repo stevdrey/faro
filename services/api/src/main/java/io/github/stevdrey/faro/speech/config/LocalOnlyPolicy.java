@@ -3,6 +3,7 @@ package io.github.stevdrey.faro.speech.config;
 
 import io.github.stevdrey.faro.speech.AsrCapabilities;
 import io.github.stevdrey.faro.speech.AsrProvider;
+import io.github.stevdrey.faro.speech.ProviderConfig;
 import io.github.stevdrey.faro.speech.SpeechFailure;
 import java.net.URI;
 
@@ -14,12 +15,7 @@ final class LocalOnlyPolicy {
         if (value == null) return null; // In-process adapters need no transport.
         try {
             var endpoint = URI.create(value);
-            var host = endpoint.getHost();
-            if (("http".equals(endpoint.getScheme()) || "https".equals(endpoint.getScheme()))
-                    && ("127.0.0.1".equals(host) || "[::1]".equals(host))
-                    && endpoint.getRawUserInfo() == null && endpoint.getRawQuery() == null
-                    && endpoint.getRawFragment() == null
-                    && (endpoint.getPort() == -1 || endpoint.getPort() >= 1 && endpoint.getPort() <= 65535)) {
+            if (ProviderConfig.isLoopbackEndpoint(endpoint)) {
                 return endpoint;
             }
         } catch (IllegalArgumentException invalid) {
@@ -30,9 +26,20 @@ final class LocalOnlyPolicy {
     }
 
     static void requireLocal(AsrProvider provider) {
-        if (!provider.localProcessing()) {
-            throw new IllegalStateException("LOCAL_ONLY vetoed ASR provider before creation");
+        boolean local;
+        try {
+            local = provider.localProcessing();
+        } catch (RuntimeException vendorFailure) {
+            // Deliberately dropped: vendor messages may carry paths or other sensitive details.
+            throw veto(SpeechFailure.Code.PROVIDER_ERROR);
         }
+        if (!local) {
+            throw veto(SpeechFailure.Code.UNAVAILABLE);
+        }
+    }
+
+    private static IllegalStateException veto(SpeechFailure.Code code) {
+        return new IllegalStateException("LOCAL_ONLY vetoed ASR provider before creation", new SpeechFailure(code));
     }
 
     static void requireLocal(AsrCapabilities capabilities) throws SpeechFailure {

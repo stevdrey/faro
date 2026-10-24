@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,7 @@ class LocalOnlyConfigurationTests {
                 .run(context -> {
                     assertThat(context).hasFailed().getFailure()
                             .hasStackTraceContaining("LOCAL_ONLY vetoed ASR provider before creation");
+                    assertThat(rootCode(context.getStartupFailure())).isEqualTo(SpeechFailure.Code.UNAVAILABLE);
                     assertThat(created).hasValue(0);
                 });
     }
@@ -82,8 +84,30 @@ class LocalOnlyConfigurationTests {
             public SpeechRecognizer create(ProviderConfig config) {
                 throw new AssertionError("Undeclared provider must never initialize");
             }
-        }).withPropertyValues("faro.speech.provider=undeclared").run(context -> assertThat(context)
-                .hasFailed().getFailure().hasStackTraceContaining("LOCAL_ONLY vetoed ASR provider before creation"));
+        }).withPropertyValues("faro.speech.provider=undeclared").run(context -> {
+            assertThat(context).hasFailed().getFailure()
+                    .hasStackTraceContaining("LOCAL_ONLY vetoed ASR provider before creation");
+            assertThat(rootCode(context.getStartupFailure())).isEqualTo(SpeechFailure.Code.UNAVAILABLE);
+        });
+    }
+
+    @Test
+    void failingProcessingDeclarationIsVetoedWithoutLeakingVendorDetails() {
+        var created = new AtomicInteger();
+        runner.withBean("broken", AsrProvider.class, () -> new AsrProvider() {
+            public String id() { return "broken"; }
+            public boolean localProcessing() { throw new IllegalStateException("synthetic-private-detail"); }
+            public SpeechRecognizer create(ProviderConfig config) {
+                created.incrementAndGet();
+                return localRecognizer(request -> null);
+            }
+        }).withPropertyValues("faro.speech.provider=broken").run(context -> {
+            assertThat(context).hasFailed().getFailure()
+                    .hasStackTraceContaining("LOCAL_ONLY vetoed ASR provider before creation")
+                    .satisfies(failure -> assertThat(stackTrace(failure)).doesNotContain("synthetic-private-detail"));
+            assertThat(rootCode(context.getStartupFailure())).isEqualTo(SpeechFailure.Code.PROVIDER_ERROR);
+            assertThat(created).hasValue(0);
+        });
     }
 
     @ParameterizedTest
@@ -113,7 +137,9 @@ class LocalOnlyConfigurationTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"http://127.0.0.1:8085/inference", "http://[::1]:8085", "https://127.0.0.1/inference"})
+    @ValueSource(strings = {
+        "http://127.0.0.1:8085/inference", "http://[::1]:8085", "https://127.0.0.1/inference", "HTTP://127.0.0.1:8085"
+    })
     void installedLocalWhisperReceivesValidatedEndpoint(String endpoint) {
         var received = new AtomicReference<ProviderConfig>();
         runner.withBean("local", AsrProvider.class, () -> provider("whisper-cpp", true, config -> {
@@ -138,6 +164,48 @@ class LocalOnlyConfigurationTests {
                 .withPropertyValues("faro.speech.provider=local")
                 .run(context -> assertThat(context).hasFailed().getFailure()
                         .hasStackTraceContaining("LOCAL_ONLY rejected ASR capabilities"));
+    }
+
+    @Test
+    void failingStartupCapabilitiesAreReportedAsProviderFaultWithoutVendorDetails() {
+        runner.withBean("local", AsrProvider.class, () -> provider("local", true, config -> new SpeechRecognizer() {
+                    public AsrCapabilities capabilities() { throw new IllegalStateException("synthetic-private-detail"); }
+                    public SpeechHypothesis transcribe(SpeechRequest request) {
+                        throw new AssertionError("Unstarted recognizer must never receive audio");
+                    }
+                }))
+                .withPropertyValues("faro.speech.provider=local")
+                .run(context -> {
+                    assertThat(context).hasFailed().getFailure()
+                            .hasStackTraceContaining("ASR provider 'local' failed to report capabilities")
+                            .satisfies(failure -> assertThat(stackTrace(failure))
+                                    .doesNotContain("synthetic-private-detail")
+                                    .doesNotContain("LOCAL_ONLY rejected"));
+                    assertThat(rootCode(context.getStartupFailure())).isEqualTo(SpeechFailure.Code.PROVIDER_ERROR);
+                });
+    }
+
+    @Test
+    void failingRuntimeCapabilitiesBecomeProviderErrorBeforeDeliveringAudio() {
+        var broken = new AtomicBoolean();
+        var calls = new AtomicInteger();
+        runner.withBean("local", AsrProvider.class, () -> provider("local", true, config -> new SpeechRecognizer() {
+                    public AsrCapabilities capabilities() {
+                        if (broken.get()) throw new IllegalStateException("synthetic-private-detail");
+                        return LocalOnlyConfigurationTests.capabilities(true);
+                    }
+                    public SpeechHypothesis transcribe(SpeechRequest request) {
+                        calls.incrementAndGet();
+                        return null;
+                    }
+                }))
+                .withPropertyValues("faro.speech.provider=local")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    broken.set(true);
+                    assertFailure(context.getBean(SpeechRecognizer.class), SpeechFailure.Code.PROVIDER_ERROR);
+                    assertThat(calls).hasValue(0);
+                });
     }
 
     @Test
@@ -211,10 +279,26 @@ class LocalOnlyConfigurationTests {
     @Test
     void configurationStringRepresentationsRedactEndpoints() {
         var endpoint = "http://synthetic-private-detail@127.0.0.1";
-        assertThat(new ProviderConfig("local", "es-CR", Duration.ofSeconds(1), URI.create(endpoint)).toString())
-                .doesNotContain("synthetic-private-detail");
+        var validEndpoint = URI.create("http://127.0.0.1:8085/synthetic-private-detail");
+        assertThat(new ProviderConfig("local", "es-CR", Duration.ofSeconds(1), validEndpoint).toString())
+                .doesNotContain("synthetic-private-detail").contains("endpoint=<redacted>");
         assertThat(new SpeechProperties("local", "es-CR", Duration.ofSeconds(1), endpoint).toString())
                 .doesNotContain("synthetic-private-detail");
+        assertThat(new ProviderConfig("local", "es-CR", Duration.ofSeconds(1)).toString()).contains("endpoint=<none>");
+        assertThat(new SpeechProperties("local", "es-CR", Duration.ofSeconds(1), null).toString())
+                .contains("endpoint=<none>");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "https://synthetic-private-detail.invalid/inference", "http://localhost:8085",
+        "http://127.0.0.1?synthetic-private-detail", "ftp://127.0.0.1"
+    })
+    void providerConfigItselfRejectsNonLoopbackEndpointsWithoutEchoingThem(String endpoint) {
+        assertThatThrownBy(() -> new ProviderConfig("local", "es-CR", Duration.ofSeconds(1), URI.create(endpoint)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("endpoint must be HTTP(S) on literal 127.0.0.1 or [::1]")
+                .satisfies(failure -> assertThat(stackTrace(failure)).doesNotContain("synthetic-private-detail"));
     }
 
     private void verifyNoFallback(Transcriber transcriber, SpeechFailure.Code code, String timeout) {
@@ -284,6 +368,13 @@ class LocalOnlyConfigurationTests {
             assertThat(failure.getCause()).isNull();
             assertThat(failure.getSuppressed()).isEmpty();
         });
+    }
+
+    private static SpeechFailure.Code rootCode(Throwable failure) {
+        var root = failure;
+        while (root.getCause() != null) root = root.getCause();
+        assertThat(root).isInstanceOf(SpeechFailure.class);
+        return ((SpeechFailure) root).code();
     }
 
     private static String stackTrace(Throwable failure) {

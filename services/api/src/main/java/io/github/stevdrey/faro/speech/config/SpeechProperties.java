@@ -22,6 +22,6 @@ public record SpeechProperties(String provider,
     @Override
     public String toString() {
         return "SpeechProperties[provider=" + provider + ", language=" + language + ", timeout=" + timeout
-                + ", endpoint=<redacted>]";
+                + ", endpoint=" + (endpoint == null ? "<none>" : "<redacted>") + "]";
     }
 }

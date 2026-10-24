@@ -14,14 +14,20 @@ audio endpoint, browser changes or assessment rules are introduced.
   denial, checked before `create`, even for an adapter named `whisper-cpp`.
   Unselected factories are never invoked.
 - Optional `faro.speech.endpoint` is validated before factory invocation and
-  passed through `ProviderConfig`. Only HTTP(S) on literal `127.0.0.1` or `[::1]`
-  with an optional valid port/path is admitted. DNS names (including `localhost`),
-  cloud/LAN/wildcard addresses, alternate IP forms, other schemes, credentials,
-  query strings, fragments and malformed values are rejected without echoing
-  the endpoint. Validation performs no DNS resolution or network I/O.
+  passed through `ProviderConfig`. Only HTTP(S) (scheme case-insensitive) on
+  literal `127.0.0.1` or `[::1]` with an optional valid port/path is admitted.
+  DNS names (including `localhost`), cloud/LAN/wildcard addresses, alternate IP
+  forms, other schemes, credentials, query strings, fragments and malformed
+  values are rejected without echoing the endpoint. Validation performs no DNS
+  resolution or network I/O. The `ProviderConfig` constructor enforces the same
+  rule, so no instance can carry a non-loopback endpoint.
+- Undeclared, remote and failing local-processing declarations are vetoed with
+  a `SpeechFailure` cause (`UNAVAILABLE`, or `PROVIDER_ERROR` when the
+  declaration throws); vendor messages are dropped.
 - Created recognizers must advertise local capabilities. Each transcription
   rechecks them before delivering audio; remote or missing capabilities fail
-  with `PROVIDER_ERROR`. Vendor capability exceptions are normalized too.
+  with `PROVIDER_ERROR`. Vendor capability exceptions are normalized too: at
+  startup they are reported as a provider fault, not as a LOCAL_ONLY rejection.
 - Local startup failure, all `SpeechFailure` codes, unchecked exceptions, null
   results and inference timeout never select another factory. Timeout interrupts
   the local call; no cloud recognizer is created or called.
@@ -48,10 +54,11 @@ node .agents/scripts/pr-size-preflight.mjs
 git diff --check
 ```
 
-`LocalOnlyConfigurationTests` contains 42 synthetic test cases for default and
-explicit policy, invalid policy before creation, remote/undeclared factory veto,
-endpoint rejection/redaction and validated endpoint delivery to a test-only
-installed whisper factory. Startup/runtime failures, null/remote capabilities,
+`LocalOnlyConfigurationTests` contains 50 synthetic test cases for default and
+explicit policy, invalid policy before creation, remote/undeclared/failing
+declaration veto, endpoint rejection (at binding and in `ProviderConfig`)
+and redaction, and validated endpoint delivery to a test-only installed whisper
+factory. Startup/runtime failures, null/remote/failing capabilities,
 null results and timeout are covered with counters proving zero cloud factory
 creations and zero cloud transcription calls. Existing `SpeechConfigurationTests`
 cover fake/whisper selection, unknown providers, duplicate registration and
@@ -59,11 +66,11 @@ factory errors. `FaroApplicationTests` verifies the effective privacy policy in
 the full Spring context.
 
 Local verification on 2026-10-23: the speech subset and full API suite passed;
-the full suite ran **512 tests, zero failures/errors/skips**, using Java 27 and
+the full suite ran **520 tests, zero failures/errors/skips**, using Java 27 and
 installed Gradle 9.8.2. The repository/CI pins Gradle 9.8.1, which was not installed
 locally. No lockfiles or verification metadata were changed. The existing API CI
 job runs the complete suite, including these regressions, with no real ASR runtime
-or model downloads. Remote CI has not been run for this working-tree change.
+or model downloads; remote CI results are recorded on the pull request.
 
 ## Integration boundary
 
