@@ -18,7 +18,7 @@ The future MVP 0.1 includes three exercise families (missing addend, sequences, 
 - `tools`: future reproducible ASR benchmarks.
 - `docs`: English architecture, design decisions, research protocol, supply-chain policy, and 41-issue backlog.
 
-Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback; the application has no real ASR adapter or audio endpoint yet. A separately managed [whisper.cpp CPU baseline](infra/whisper/README.md) supports local synthetic Spanish WAV tests, with a digest-pinned image and checksum-verified multilingual base model. Optional explanation interpretation will use a separate port. Moonshine and Vosk are benchmark candidates, not prerequisites. The backend enforces `LOCAL_ONLY` before creating an ASR adapter and before each transcription: remote/undeclared providers and non-loopback configured endpoints fail closed, with no cloud fallback. This admission gate covers reviewed adapters; it is not an OS egress firewall. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
+Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback. FARO-012 adds a **default-disabled synthetic-only preview** connecting browser audio to the independently managed [whisper.cpp CPU baseline](infra/whisper/README.md), with a digest-pinned image and checksum-verified multilingual base model. FARO-040 (`LOCAL_ONLY`, issue #21, merged in #73) enforces backend admission before adapter creation and each transcription. The preview remains synthetic-only; this gate does not authorize a child pilot. Optional explanation interpretation will use a separate port. Moonshine and Vosk are benchmark candidates, not prerequisites. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
 
 **Compatibility note:** Gradle 9.8.1 supports Java 27, but Spring Boot 4.1.1 currently documents Java compatibility through Java 26 only. CI explicitly tests Java 27; this pairing remains experimental pending officially documented support.
 
@@ -205,13 +205,44 @@ and blocks guides until capture has finished. Microphone, permission or recorder
 errors show neutral retry messages and leave the visual activities available.
 
 This uses browser `getUserMedia`/`MediaRecorder` in a secure context such as
-loopback. The browser's actual encoding is preserved: there is no PCM conversion,
+loopback. In the ordinary demo, the browser's actual encoding is preserved: there is no PCM conversion,
 ASR, audio upload, download control, storage, logging or telemetry. The app releases
 Blob references and revokes playback URLs on discard; browser-managed memory is
 reclaimed by the browser. No dependency, backend or semantic contract changes are
 needed. Automated recording verification uses Chromium with synthetic devices;
 Firefox/Safari and physical-device usability remain manual checks. See
 [FARO-011 verification](docs/verification/browser-voice-capture.md).
+
+## Synthetic browser-to-ASR preview (FARO-012 / issue #16)
+
+This preview is **off by default**, including in the `dev` profile. Enable it only
+for synthetic technical tests under the merged FARO-040 backend privacy
+gate. The existing recording confirmation does not authorize child-audio upload.
+
+Start the verified local baseline, then run the API and web server separately:
+
+```bash
+python3 infra/whisper/baseline.py start
+gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true --faro.speech.endpoint=http://127.0.0.1:8085/inference'
+VITE_FARO_SYNTHETIC_ASR=true npm --prefix apps/web run dev
+```
+
+After recording synthetic audio, confirm its synthetic origin and explicitly
+choose **Transcribir prueba**. The browser decodes its native format with Web Audio,
+downmixes to mono and normalizes to PCM16 little-endian at 16 kHz, for up to
+30 seconds (the auto-stop's small overrun is trimmed). Unsupported codecs, invalid/oversized audio, unavailable inference
+and timeouts offer retry while preserving the completed visual attempt.
+The API forwards audio through `SpeechRecognizer`; only the adapter knows the
+whisper.cpp WAV/multipart protocol. Results remain **unconfirmed hypotheses**
+in optional technical details, without grading or changing the semantic trace.
+
+Neither stopping a recording nor listening sends audio. Cancel/delete/re-record,
+restart, activity/example changes, hiding/leaving and unmount invalidate pending
+decoding/HTTP and clear the result. Inference already accepted may run until its
+bounded deadline. Audio/transcripts are transient, with no application files,
+browser storage or telemetry. The baseline's Docker logging stays disabled.
+This is not the protected adult review or authorization for a pilot.
+See [FARO-012 verification and synthetic smoke test](docs/verification/browser-asr-integration.md).
 
 ## Supply-chain safety
 
