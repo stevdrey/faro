@@ -15,6 +15,11 @@ public final class FakeAsrProvider implements AsrProvider {
     }
 
     @Override
+    public boolean localProcessing() {
+        return true;
+    }
+
+    @Override
     public SpeechRecognizer create(ProviderConfig config) {
         return new FakeSpeechRecognizer();
     }

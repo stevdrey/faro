@@ -2,6 +2,7 @@
 package io.github.stevdrey.faro.speech.adapters;
 
 import io.github.stevdrey.faro.speech.AsrCapabilities;
+import io.github.stevdrey.faro.speech.ProviderConfig;
 import io.github.stevdrey.faro.speech.SpeechFailure;
 import io.github.stevdrey.faro.speech.SpeechHypothesis;
 import io.github.stevdrey.faro.speech.SpeechRecognizer;
@@ -37,7 +38,7 @@ import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
-/** In-memory PCM/WAV transport. The endpoint is a fixed literal loopback address, with no redirects/proxy. */
+/** In-memory PCM/WAV transport to the LOCAL_ONLY-validated endpoint, with no redirects/proxy. */
 public final class WhisperCppRecognizer implements SpeechRecognizer {
     private static final AsrCapabilities CAPABILITIES =
             new AsrCapabilities(Set.of(16_000), Set.of("es-CR"), Duration.ofSeconds(30), true);
@@ -59,15 +60,14 @@ public final class WhisperCppRecognizer implements SpeechRecognizer {
     private final JsonMapper mapper = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
 
-    public WhisperCppRecognizer(Duration timeout, String modelId, String modelVersion) {
-        this(URI.create("http://127.0.0.1:8085/inference"), timeout, drainLimitFor(timeout), modelId, modelVersion);
+    public WhisperCppRecognizer(URI endpoint, Duration timeout, String modelId, String modelVersion) {
+        this(endpoint, timeout, drainLimitFor(timeout), modelId, modelVersion);
     }
 
     /** Package-private test seam; even test endpoints must use literal loopback without URI overrides. */
     WhisperCppRecognizer(URI endpoint, Duration timeout, Duration drainLimit, String modelId, String modelVersion) {
-        if (!"http".equals(endpoint.getScheme()) || !"127.0.0.1".equals(endpoint.getHost())
-                || endpoint.getUserInfo() != null || endpoint.getQuery() != null || endpoint.getFragment() != null
-                || !"/inference".equals(endpoint.getPath())) {
+        if (endpoint == null || !ProviderConfig.isLoopbackEndpoint(endpoint)
+                || !"/inference".equals(endpoint.getRawPath())) {
             throw new IllegalArgumentException("Only the local baseline inference endpoint is supported");
         }
         this.endpoint = endpoint;

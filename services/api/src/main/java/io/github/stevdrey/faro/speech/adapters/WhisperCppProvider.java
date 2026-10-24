@@ -13,11 +13,17 @@ public final class WhisperCppProvider implements AsrProvider {
     public String id() { return "whisper-cpp"; }
 
     @Override
+    public boolean localProcessing() { return true; }
+
+    @Override
     public SpeechRecognizer create(ProviderConfig config) throws SpeechFailure {
+        if (config.endpoint() == null || !"/inference".equals(config.endpoint().getRawPath())) {
+            throw new SpeechFailure(SpeechFailure.Code.INCOMPATIBLE_REQUEST);
+        }
         try (var input = getClass().getResourceAsStream("/speech/whisper-artifacts.json")) {
             if (input == null) throw new SpeechFailure(SpeechFailure.Code.UNAVAILABLE);
             var manifest = JsonMapper.builder().build().readTree(input);
-            return new WhisperCppRecognizer(config.timeout(), manifest.get("model").get("id").asString(),
+            return new WhisperCppRecognizer(config.endpoint(), config.timeout(), manifest.get("model").get("id").asString(),
                     manifest.get("model").get("revision").asString());
         } catch (SpeechFailure failure) {
             throw failure;

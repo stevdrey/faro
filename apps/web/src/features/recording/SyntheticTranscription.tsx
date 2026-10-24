@@ -14,7 +14,7 @@ const messages: Record<AudioErrorCode, string> = {
   provider: 'No se pudo obtener una transcripción. Podés reintentar o seguir con la actividad.',
 }
 
-/** Explicitly enabled technical preview, pending FARO-040; not an adult review or a child-audio gate. */
+/** Explicitly enabled synthetic preview using FARO-040 admission; not an adult review or consent gate. */
 export function SyntheticTranscription({ clip }: { clip: RecordedClip }) {
   const [controller] = useState(() => new TranscriptionController())
   const [state, setState] = useState(controller.state)
@@ -28,7 +28,7 @@ export function SyntheticTranscription({ clip }: { clip: RecordedClip }) {
     }
   }, [controller])
   return <div className="synthetic-transcription">
-    <p>Prueba técnica: solo audio sintético. La integración con audio infantil está pendiente de LOCAL_ONLY (issue #21).</p>
+    <p>Prueba técnica: solo audio sintético, con procesamiento local. Esta vista previa no habilita el uso con audio infantil.</p>
     <label><input type="checkbox" checked={confirmed} onChange={event => {
       setConfirmed(event.target.checked)
       if (!event.target.checked) controller.cancel()

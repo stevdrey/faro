@@ -15,9 +15,11 @@ management:
     health:
       show-details: never
 
-# FARO-040 must enforce LOCAL_ONLY before child-audio integration. The synthetic preview stays off.
+# LOCAL_ONLY is enforced before adapter creation and each request. The synthetic preview stays off.
 # faro.speech.provider has no default; startup fails until a deployment or the dev profile selects one.
 faro:
+  privacy:
+    policy: LOCAL_ONLY
   speech:
     language: es-CR
     timeout: 8s

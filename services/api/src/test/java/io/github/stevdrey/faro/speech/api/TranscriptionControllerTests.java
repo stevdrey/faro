@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class TranscriptionControllerTests {
     private final SpeechRecognizer recognizer = mock(SpeechRecognizer.class);
     private final TranscriptionController controller = new TranscriptionController(recognizer,
-            new SpeechProperties("fake", "es-CR", Duration.ofSeconds(8)));
+            new SpeechProperties("fake", "es-CR", Duration.ofSeconds(8), null));
     private final org.springframework.test.web.servlet.MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
 
     @Test

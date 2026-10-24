@@ -18,7 +18,7 @@ The future MVP 0.1 includes three exercise families (missing addend, sequences, 
 - `tools`: future reproducible ASR benchmarks.
 - `docs`: English architecture, design decisions, research protocol, supply-chain policy, and 41-issue backlog.
 
-Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback. FARO-012 adds a **default-disabled synthetic-only preview** connecting browser audio to the independently managed [whisper.cpp CPU baseline](infra/whisper/README.md), with a digest-pinned image and checksum-verified multilingual base model. Child-audio integration remains blocked on FARO-040 (`LOCAL_ONLY`, issue #21). Optional explanation interpretation will use a separate port. Moonshine and Vosk are benchmark candidates, not prerequisites. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
+Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback. FARO-012 adds a **default-disabled synthetic-only preview** connecting browser audio to the independently managed [whisper.cpp CPU baseline](infra/whisper/README.md), with a digest-pinned image and checksum-verified multilingual base model. FARO-040 (`LOCAL_ONLY`, issue #21, merged in #73) enforces backend admission before adapter creation and each transcription. The preview remains synthetic-only; this gate does not authorize a child pilot. Optional explanation interpretation will use a separate port. Moonshine and Vosk are benchmark candidates, not prerequisites. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
 
 **Compatibility note:** Gradle 9.8.1 supports Java 27, but Spring Boot 4.1.1 currently documents Java compatibility through Java 26 only. CI explicitly tests Java 27; this pairing remains experimental pending officially documented support.
 
@@ -216,14 +216,14 @@ Firefox/Safari and physical-device usability remain manual checks. See
 ## Synthetic browser-to-ASR preview (FARO-012 / issue #16)
 
 This preview is **off by default**, including in the `dev` profile. Enable it only
-for synthetic technical tests, pending the independent FARO-040 backend privacy
+for synthetic technical tests under the merged FARO-040 backend privacy
 gate. The existing recording confirmation does not authorize child-audio upload.
 
 Start the verified local baseline, then run the API and web server separately:
 
 ```bash
 python3 infra/whisper/baseline.py start
-gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true'
+gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true --faro.speech.endpoint=http://127.0.0.1:8085/inference'
 VITE_FARO_SYNTHETIC_ASR=true npm --prefix apps/web run dev
 ```
 

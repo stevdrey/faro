@@ -154,6 +154,7 @@ class SpeechConfigurationTests {
     private static AsrProvider provider(String id, Factory factory) {
         return new AsrProvider() {
             public String id() { return id; }
+            public boolean localProcessing() { return true; }
             public SpeechRecognizer create(ProviderConfig config) throws SpeechFailure { return factory.create(config); }
         };
     }

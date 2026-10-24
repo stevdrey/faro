@@ -4,14 +4,15 @@
 
 This delivers the technical browser → PCM16 → `SpeechRecognizer` → whisper.cpp
 path. **The preview stays off by default and is only for operator-declared
-synthetic tests.** FARO-040 / #21 remains a separate, open dependency before
-child audio. The confirmation cannot determine audio origin and does not
-implement the general `LOCAL_ONLY` policy or protected adult review.
+synthetic tests.** FARO-040 / #21 was merged in #73; its backend `LOCAL_ONLY`
+admission now applies to the real whisper.cpp provider. The synthetic confirmation
+cannot determine audio origin, establish guardian consent or authorize a pilot.
+This preview does not provide protected adult review or enable child-audio use.
 
 Ordinary startup, including `dev`, retains browser-only recording. Enabling only
 the web preview cannot enable the API route; enabling only the API cannot cause
-automatic uploads. The API requires loopback binding. The adapter has a fixed
-literal-loopback endpoint, no proxy, redirects, runtime downloads or cloud
+automatic uploads. The API requires loopback binding. The adapter requires an
+explicit literal-loopback endpoint admitted by LOCAL_ONLY, with no proxy, redirects, runtime downloads or cloud
 fallback. Use the managed baseline with its reviewed manifest, verified model
 and disabled Docker logging. No dependency, weights or audio fixture is added.
 
@@ -59,7 +60,7 @@ Docker implicitly. Start the baseline and API in separate terminals:
 
 ```bash
 python3 infra/whisper/baseline.py start
-gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true'
+gradle -p services/api bootRun --args='--faro.speech.provider=whisper-cpp --faro.speech.synthetic-test.enabled=true --faro.speech.endpoint=http://127.0.0.1:8085/inference'
 ```
 
 With port 5174 free:
@@ -96,7 +97,7 @@ without promising immediate interruption of already accepted inference.
 Web Audio decoding is not abortable; its late completion is ignored and cannot
 upload a cancelled clip.
 
-Local verification on **2026-10-23 (America/Costa_Rica)**:
+Original FARO-012 verification on **2026-10-23 (America/Costa_Rica)**:
 
 - Java: **493 tests passed**, zero failures/errors/skips; the adapter tests also
   passed **3/3** repeated runs.
@@ -118,8 +119,41 @@ Local verification on **2026-10-23 (America/Costa_Rica)**:
 Environment: Node **24.21.0**, npm CLI **12.2.0**, JDK **27**, Chromium provided by
 the locked Playwright installation. Local Gradle is **9.8.2**, while repository CI
 pins **9.8.1**; that exact CI Gradle version was not exercised locally. No remote
-CI or protected branch setting is claimed. FARO-040 / #21 remains unimplemented
-by this change, so child-audio enablement remains pending.
+CI or protected branch setting is claimed by these original results. FARO-040
+was subsequently merged in #73 and integrated below. The preview remains
+synthetic-only and disabled by default.
+
+### Integration with merged FARO-040 (#21 / PR #73)
+
+The branch incorporates `main` commit `98618f9`. `WhisperCppProvider` explicitly
+declares local processing and requires `faro.speech.endpoint` with its full
+`/inference` path. The recognizer uses that admitted URI instead of an implicit
+fixed address. Missing endpoints and unsupported paths fail startup; remote
+endpoints and non-LOCAL_ONLY policies are vetoed by the shared backend gate.
+The web/API preview flags remain off by default and the feature stays synthetic-only.
+
+Local integration verification on **2026-10-23 (America/Costa_Rica)**:
+
+- Full Java suite: **546 passed**, zero failures/errors/skips. Added real-provider
+  configuration coverage for missing/incorrect endpoints, cloud/policy veto and
+  successful transcription through the guard to a configured ephemeral local
+  HTTP server, demonstrating that the configured address is actually used.
+- Web units: **105 passed**; type checks and default production build passed.
+- Targeted Chromium preview: **13 passed**, with the optional real smoke skipped
+  in the ordinary run. The prior full-browser regression remains recorded above.
+- Real browser → LOCAL_ONLY API → pinned whisper.cpp smoke: **passed again**,
+  now after the review fixes and policy integration. Generated Spanish speech
+  recorded by the browser yielded `TRANSCRIBED`, effective language `es`, expected
+  model/revision, **2,885 ms** adapter latency and **81 transcript characters**.
+  These are technical success metrics, not accuracy claims; no transcript/audio
+  is retained in the report. The test browser, temporary audio, API and baseline
+  started for this check were cleaned up.
+- Resulting PR scope: **25 files** relative to the updated `main`, within the
+  ordinary 0–30 range. `git diff --check` passed; no dependencies changed.
+
+Local environment remains Node 24.21.0, npm CLI 12.2.0, JDK 27 and Gradle 9.8.2
+(CI pins Gradle 9.8.1). The dependency on #21 is resolved; pilot consent,
+protected adult review and child-audio enablement remain outside this preview.
 
 References: [Web Audio complete-file decoding and resampling](https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/decodeAudioData)
 and the [pinned whisper.cpp server protocol](https://github.com/ggml-org/whisper.cpp/blob/231638a0717b7822784297e5980965ffcec05810/examples/server/server.cpp).
