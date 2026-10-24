@@ -28,7 +28,12 @@ URL, extra response property or original exception. A new recording/transcriptio
 clears the previous record. Cancel/delete, restart, activity/example changes,
 hidden/leaving, reload and unmount discard it; active reselection preserves it.
 Attempt identity and controller generations prevent obsolete callbacks from
-repopulating it, including when repeating the same exercise.
+repopulating it, including when repeating the same exercise. The transcription
+component cancels its own controller synchronously on hidden `visibilitychange`
+and on `pagehide`, rather than relying on React to unmount it after the parent
+discards capture. The event handler aborts HTTP and invalidates the generation
+before a response continuation can write a new record; listeners are removed
+on cleanup.
 
 Audio remains solely in the existing transient capture/playback and bounded
 inference path. There are no files, browser storage, retry history, database or
@@ -61,6 +66,12 @@ git diff --check
   empty results, retries, unchanged snapshots, empty browser storage, console
   privacy and lifecycle cleanup with late responses. The default build stays
   capture-only; preview tests use synthetic audio and intercepted ASR responses.
+  Two regressions dispatch `visibilitychange`/`pagehide` and resolve a pending
+  response in the same JavaScript task, using a fetch stub that deliberately
+  ignores abort. They wait for the response continuation and React to settle,
+  then assert an empty record, synchronous abort, discarded clip, unchanged
+  completed attempt and empty browser storage. Both failed before the fix and
+  passed after it.
 - The existing optional real whisper.cpp smoke remains separate and requires an
   explicitly started verified baseline; these changes need no model download.
 
@@ -68,17 +79,18 @@ git diff --check
 
 - Java 27 / Gradle 9.8.1: **552 passed**, zero failures/errors/skips; this includes
   all 10 controller cases. The Gradle distribution was verified against its
-  official SHA-256 before use.
+  official SHA-256 before use. This is the original implementation's backend
+  verification; the lifecycle follow-up changes only browser code/tests and
+  this guide, so the unchanged backend suite was not rerun for that follow-up.
 - Node 24.21.0 / npm 12.2.0: **109 unit tests passed**; typecheck and production
-  build passed. Temporary tooling was prepared outside the repository; no
+  build passed again after the lifecycle fix. Temporary tooling was prepared outside the repository; no
   dependency manifest, lockfile or verification checksum changed.
-- Chromium: **139 distinct automated cases passed** across the full suite and a
-  focused recheck. The initial full run had 138 passes and one test that read a
-  restarted attempt before React's completion effect committed. After changing
-  that assertion to poll for the new identifier, all 13 transcription cases
-  passed on recheck. The optional real whisper.cpp smoke was skipped because no
-  explicitly started baseline/API was used. Browser traces, screenshots and
-  videos stayed off.
+- Chromium: the complete suite after the lifecycle fix had **141 passed**, zero
+  failures and **1 skipped** (the optional real whisper.cpp smoke, because no
+  explicitly started baseline/API was used). The two new regressions were also
+  checked in isolation: both failed with retained ASR records before the fix,
+  and both passed after synchronous lifecycle cancellation. Browser traces,
+  screenshots and videos stayed off.
 - PR preflight: **20/40 changed files**, within the preferred 30-file scope;
   `git diff --check` passed. Existing CI remains the authoritative gate.
 

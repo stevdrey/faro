@@ -28,8 +28,14 @@ export function SyntheticTranscription({ clip, attemptId, recordSpeech }: {
       setState(next)
       recordSpeech(attemptId, transcriptionRecord(attemptId, clip.durationMs, next))
     })
-    // Hiding/pagehide cancel the parent capture, which drops the clip and unmounts this preview.
+    // Invalidate in the event handler: the parent's unmount may happen after a response continuation.
+    const clear = () => controller.cancel()
+    const hidden = () => { if (document.hidden) clear() }
+    document.addEventListener('visibilitychange', hidden)
+    window.addEventListener('pagehide', clear)
     return () => {
+      document.removeEventListener('visibilitychange', hidden)
+      window.removeEventListener('pagehide', clear)
       unsubscribe()
       controller.cancel()
     }

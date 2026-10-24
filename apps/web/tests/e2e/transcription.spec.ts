@@ -15,6 +15,12 @@ const panel = (page: Page) => page.getByRole('region', { name: 'Contame cómo lo
 const control = (page: Page, name: string) => panel(page).getByRole('button', { name, exact: true })
 const hypothesis = { schemaVersion: 1, status: 'TRANSCRIBED', transcript: 'seis', engineId: 'synthetic',
   modelId: 'test', modelVersion: '1', latencyMs: 1, audioDurationMs: 1000, languageTag: 'es' }
+
+declare global {
+  interface Window {
+    pendingSyntheticAsr?: { signal: AbortSignal; resolve: () => void }
+  }
+}
 async function prepare(page: Page, seconds = 1, sequence = false) {
   await page.goto(harness)
   if (sequence) await page.getByRole('button', { name: 'Secuencias', exact: true }).click()
@@ -180,6 +186,49 @@ test.describe('synthetic ASR preview', () => {
       await expect(page.getByText('Terminaste', { exact: true })).toBeVisible()
     } finally { await page.context().close() }
   })
+  for (const event of ['visibilitychange', 'pagehide'] as const) {
+    test(`${event} discards same-turn ASR completion before unmount`, async () => {
+      const page = await syntheticPage()
+      await page.addInitScript(result => {
+        const originalFetch = window.fetch.bind(window)
+        window.fetch = (input, options) => {
+          if (input !== '/api/v1/speech/transcriptions') return originalFetch(input, options)
+          // Deliberately ignore abort: even a response already arriving must not restore discarded data.
+          return new Promise<Response>(resolve => {
+            window.pendingSyntheticAsr = { signal: options!.signal!, resolve: () => resolve(new Response(JSON.stringify(result), {
+              status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+            })) }
+          })
+        }
+      }, hypothesis)
+      try {
+        await prepare(page)
+        const attempt = await page.evaluate(() => window.attemptEvidence.current)
+        await confirm(page)
+        await control(page, 'Transcribir prueba').click()
+        await page.waitForFunction(() => Boolean(window.pendingSyntheticAsr))
+        const synchronouslyAborted = await page.evaluate(event => {
+          if (event === 'visibilitychange') {
+            Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+            document.dispatchEvent(new Event(event))
+          } else window.dispatchEvent(new Event(event))
+          const pending = window.pendingSyntheticAsr!
+          const aborted = pending.signal.aborted
+          pending.resolve() // Same task as discard, before React's passive unmount cleanup can run.
+          return aborted
+        }, event)
+        // Let both the response continuation and React commit; polling null immediately could miss resurrection.
+        await page.evaluate(() => new Promise<void>(resolve =>
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve)))))
+        expect(await page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
+        expect(synchronouslyAborted).toBe(true)
+        await expect(control(page, 'Escuchar mi grabación')).toHaveCount(0)
+        await expect(page.getByText('Transcripción lista, sin confirmar.', { exact: true })).toHaveCount(0)
+        expect(await page.evaluate(() => window.attemptEvidence.current)).toEqual(attempt)
+        expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0])
+      } finally { await page.context().close() }
+    })
+  }
   for (const action of ['cancel', 'delete', 'replace', 'reset', 'activity', 'example', 'hidden', 'pagehide', 'unmount'] as const) {
     test(`${action} invalidates pending transcription and late responses`, async () => {
       const page = await syntheticPage()
