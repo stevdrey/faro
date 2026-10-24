@@ -59,7 +59,8 @@ function Activities({ completion }: { completion: AttemptCompletionController })
         </select></label><p>Cambiar de ejemplo borra tus saltos.</p></div>
         <SequenceScreen key={exercise.exerciseId} exercise={exercise} onComplete={onComplete} onReset={onReset} />
       </>}
-    {completion.state.completedAttempt && <ExplanationRecorder key={exercise.exerciseId}
+    {completion.state.completedAttempt && <ExplanationRecorder key={completion.state.completedAttempt.attemptId}
+      attemptId={completion.state.completedAttempt.attemptId} recordSpeech={completion.recordSpeech}
       authorized={authorized} authorize={() => setAuthorized(true)} />}
   </>
 }

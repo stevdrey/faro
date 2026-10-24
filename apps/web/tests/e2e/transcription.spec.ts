@@ -14,7 +14,7 @@ const harness = '/tests/e2e/harness.html?activity=app'
 const panel = (page: Page) => page.getByRole('region', { name: 'Contame cómo lo hiciste' })
 const control = (page: Page, name: string) => panel(page).getByRole('button', { name, exact: true })
 const hypothesis = { schemaVersion: 1, status: 'TRANSCRIBED', transcript: 'seis', engineId: 'synthetic',
-  modelId: 'test', modelVersion: '1', latencyMs: 1, languageTag: 'es' }
+  modelId: 'test', modelVersion: '1', latencyMs: 1, audioDurationMs: 1000, languageTag: 'es' }
 async function prepare(page: Page, seconds = 1, sequence = false) {
   await page.goto(harness)
   if (sequence) await page.getByRole('button', { name: 'Secuencias', exact: true }).click()
@@ -91,10 +91,13 @@ test.describe('synthetic ASR preview', () => {
   test('real MediaRecorder audio is decoded and sent as PCM only on explicit activation', async () => {
     const page = await syntheticPage(true)
     const uploads: Buffer[] = []
+    const messages: string[] = []
+    page.on('console', message => messages.push(message.text()))
+    page.on('pageerror', error => messages.push(error.message))
     await page.route('**/api/v1/speech/transcriptions', async route => {
       expect(route.request().headers()['content-type']).toBe('application/octet-stream')
       uploads.push(route.request().postDataBuffer()!)
-      await route.fulfill({ json: hypothesis, headers: { 'Cache-Control': 'no-store' } })
+      await route.fulfill({ json: { ...hypothesis, audio: 'synthetic-private-audio', diagnostic: 'synthetic-private-vendor' }, headers: { 'Cache-Control': 'no-store' } })
     })
     try {
       await prepare(page)
@@ -105,6 +108,13 @@ test.describe('synthetic ASR preview', () => {
       await control(page, 'Transcribir prueba').focus()
       await page.keyboard.press('Enter')
       await expect(panel(page).getByText('Transcripción lista, sin confirmar.', { exact: true })).toBeVisible()
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({
+        attemptId: attempt!.attemptId, stage: 'asr', status: 'result', hypothesis,
+      })
+      const speech = await page.evaluate(() => window.attemptEvidence.speechRecord)
+      expect(speech && Object.keys(speech).sort()).toEqual(['attemptId', 'hypothesis', 'recordingDurationMs', 'stage', 'status'])
+      if (speech?.stage === 'asr' && speech.status === 'result') expect(speech.hypothesis).toEqual(hypothesis)
+      expect(messages.join('\n')).not.toMatch(/seis|synthetic-private/)
       expect(uploads).toHaveLength(1)
       expect(uploads[0].length).toBeGreaterThanOrEqual(16_000 * 2 * .9)
       expect(uploads[0].length).toBeLessThan(16_000 * 2 * 1.5)
@@ -114,6 +124,7 @@ test.describe('synthetic ASR preview', () => {
       expect(await page.evaluate(() => window.attemptEvidence.current)).toEqual(attempt)
       expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0])
       await control(page, 'Borrar').click()
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
       await expect(panel(page).getByText('seis', { exact: true })).toHaveCount(0)
     } finally { await page.context().close() }
   })
@@ -130,6 +141,9 @@ test.describe('synthetic ASR preview', () => {
       await confirm(page)
       await control(page, 'Transcribir prueba').click()
       await expect(panel(page).getByText('Este formato de audio no se puede transcribir aquí.', { exact: false })).toBeVisible()
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({
+        attemptId: attempt!.attemptId, stage: 'asr', status: 'error', error: 'unsupported',
+      })
       expect(uploads).toBe(0)
       await expect(control(page, 'Escuchar mi grabación')).toBeEnabled()
       expect(await page.evaluate(() => window.attemptEvidence.current)).toEqual(attempt)
@@ -150,9 +164,16 @@ test.describe('synthetic ASR preview', () => {
       await confirm(page)
       await control(page, 'Transcribir prueba').click()
       await expect(panel(page).getByText('La transcripción local no está disponible.', { exact: false })).toBeVisible()
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({ stage: 'asr', status: 'error', error: 'unavailable' })
       mode = 'empty'
       await control(page, 'Transcribir prueba').click()
       await expect(panel(page).getByText('No se reconocieron palabras.', { exact: false })).toBeVisible()
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toMatchObject({
+        stage: 'asr', status: 'result', hypothesis: { ...hypothesis, status: 'EMPTY', transcript: '' },
+      })
+      await panel(page).getByRole('checkbox', { name: 'Confirmo que esta grabación contiene solo audio sintético.' }).uncheck()
+      await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
+      await confirm(page)
       mode = 'malformed'
       await control(page, 'Transcribir prueba').click()
       await expect(panel(page).getByText('No se pudo obtener una transcripción.', { exact: false })).toBeVisible()
@@ -171,13 +192,22 @@ test.describe('synthetic ASR preview', () => {
       })
       try {
         await prepare(page, 1, action === 'example')
+        const originalId = await page.evaluate(() => window.attemptEvidence.current!.attemptId)
         await confirm(page)
         await control(page, 'Transcribir prueba').click()
         await started
+        await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
         if (action === 'cancel') await control(page, 'Cancelar transcripción').click()
         if (action === 'delete') await control(page, 'Borrar').click()
         if (action === 'replace') await control(page, 'Grabar de nuevo').click()
-        if (action === 'reset') await page.getByRole('button', { name: 'Intentar de nuevo', exact: true }).click()
+        if (action === 'reset') {
+          await page.getByRole('button', { name: 'Intentar de nuevo', exact: true }).click()
+          await page.getByRole('button', { name: 'Listo', exact: true }).click()
+          await expect.poll(() => page.evaluate(original => {
+            const current = window.attemptEvidence.current
+            return Boolean(current && current.attemptId !== original)
+          }, originalId)).toBe(true)
+        }
         if (action === 'activity') await page.getByRole('button', { name: 'Restas', exact: true }).click()
         if (action === 'example') await page.getByRole('combobox').selectOption('ascending')
         if (action === 'hidden') await page.evaluate(() => {
@@ -187,6 +217,7 @@ test.describe('synthetic ASR preview', () => {
         if (action === 'pagehide') await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
         if (action === 'unmount') await page.evaluate(() => window.unmountHarness())
         await deliver()
+        await expect.poll(() => page.evaluate(() => window.attemptEvidence.speechRecord)).toBeNull()
         await expect(page.getByText('Transcribiendo localmente…', { exact: true })).toHaveCount(0)
         await expect(page.getByText('Transcripción lista, sin confirmar.', { exact: true })).toHaveCount(0)
         if (action === 'cancel') await expect(control(page, 'Escuchar mi grabación')).toBeVisible()

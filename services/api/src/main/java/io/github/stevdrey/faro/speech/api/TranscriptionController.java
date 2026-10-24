@@ -44,9 +44,11 @@ public class TranscriptionController {
             var pcm = request.getInputStream().readNBytes(MAX_BYTES + 1);
             if (pcm.length > MAX_BYTES) return error(HttpStatus.CONTENT_TOO_LARGE, "AUDIO_LIMIT");
             if (pcm.length == 0 || pcm.length % 2 != 0) return error(HttpStatus.BAD_REQUEST, "INVALID_AUDIO");
-            var hypothesis = recognizer.transcribe(new SpeechRequest(pcm, SAMPLE_RATE_HZ, language,
-                    UUID.randomUUID().toString(), MAX_AUDIO));
-            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(payload(hypothesis));
+            var speechRequest = new SpeechRequest(pcm, SAMPLE_RATE_HZ, language,
+                    UUID.randomUUID().toString(), MAX_AUDIO);
+            var hypothesis = recognizer.transcribe(speechRequest);
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                    .body(payload(hypothesis, speechRequest.audioDuration().toMillis()));
         } catch (SpeechFailure failure) {
             return switch (failure.code()) {
                 case INCOMPATIBLE_REQUEST -> error(HttpStatus.BAD_REQUEST, "INVALID_AUDIO");
@@ -61,10 +63,10 @@ public class TranscriptionController {
         }
     }
 
-    private static Map<String, Object> payload(SpeechHypothesis result) {
+    private static Map<String, Object> payload(SpeechHypothesis result, long audioDurationMs) {
         return Map.of("schemaVersion", 1, "transcript", result.transcript(), "languageTag", result.languageTag(),
                 "engineId", result.engineId(), "modelId", result.modelId(), "modelVersion", result.modelVersion(),
-                "latencyMs", result.latencyMs(), "status", result.status());
+                "latencyMs", result.latencyMs(), "status", result.status(), "audioDurationMs", audioDurationMs);
     }
 
     private static ResponseEntity<?> error(HttpStatus status, String code) {

@@ -8,6 +8,8 @@ import { SpokenGuidance } from '../guidance/SpokenGuidance.tsx'
 import { clips } from '../guidance/clips.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
 import { SyntheticTranscription } from './SyntheticTranscription.tsx'
+import { captureRecord } from './speech-record.ts'
+import type { SpeechRecord } from './speech-record.ts'
 
 const synthetic = import.meta.env.VITE_FARO_SYNTHETIC_ASR === 'true'
 
@@ -43,7 +45,10 @@ function RecordedPlayback({ clip }: { clip: RecordedClip }) {
 }
 
 /** Mounted only for one completed attempt; authorization is owned by the open application. */
-export function ExplanationRecorder({ authorized, authorize }: { authorized: boolean; authorize: () => void }) {
+export function ExplanationRecorder({ authorized, authorize, attemptId, recordSpeech }: {
+  authorized: boolean; authorize: () => void; attemptId: string
+  recordSpeech: (attemptId: string, record: SpeechRecord | null) => void
+}) {
   const [controller] = useState(() => new CaptureController())
   const [state, setState] = useState(controller.state)
   const [confirmed, setConfirmed] = useState(false)
@@ -58,6 +63,7 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
   useEffect(() => {
     const unsubscribe = controller.subscribe(next => {
       setState(next)
+      recordSpeech(attemptId, captureRecord(attemptId, next))
       if (!isInFlight(next.phase)) releaseCapture()
     })
     // Players stop themselves on hiding/pagehide; cancelling also unmounts the clip player.
@@ -68,11 +74,12 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
     return () => {
       unsubscribe()
       controller.cancel()
+      recordSpeech(attemptId, null)
       releaseCapture()
       document.removeEventListener('visibilitychange', hidden)
       window.removeEventListener('pagehide', clear)
     }
-  }, [controller, coordinator])
+  }, [controller, coordinator, attemptId, recordSpeech])
   function start() {
     // Read the controller synchronously: multiple events may precede React's next render.
     if (isInFlight(controller.state.phase) || !authorized || document.hidden) return
@@ -110,7 +117,7 @@ export function ExplanationRecorder({ authorized, authorize }: { authorized: boo
       <p className="recording-timer" role="timer" aria-label="Tiempo de grabación">{Math.floor(state.elapsedMs / 1000)} / 30 s</p>
       {state.phase === 'recording' && <p>{clips.recordingStop}</p>}
       {state.clip && <RecordedPlayback clip={state.clip} />}
-      {state.clip && synthetic && <SyntheticTranscription clip={state.clip} />}
+      {state.clip && synthetic && <SyntheticTranscription clip={state.clip} attemptId={attemptId} recordSpeech={recordSpeech} />}
     </>}
     <p className="privacy-note">El audio queda en memoria. Se borra al cancelar, borrar, repetir, reiniciar, cambiar de actividad, ocultar o cerrar la página. {synthetic
       ? 'Solo «Transcribir prueba» envía el audio normalizado al servidor local para transcribirlo; no se guarda. Usá solo audio sintético.'

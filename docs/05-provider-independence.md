@@ -115,7 +115,11 @@ disabled so unsupported uploads cannot spool audio to disk.
 
 Success JSON contains `schemaVersion: 1` and the existing hypothesis fields:
 `transcript`, `languageTag`, `engineId`, `modelId`, `modelVersion`, `latencyMs`,
-`status`. Responses use `Cache-Control: no-store`. Errors return only `{code}`:
+`status`, plus FARO-013's additive `audioDurationMs` field. The API derives this
+integer from `SpeechRequest.audioDuration().toMillis()` (actual PCM length,
+truncated to whole milliseconds, including zero for a sub-millisecond clip),
+never from a caller duration. It is separate from adapter latency and browser
+recording elapsed time. Responses use `Cache-Control: no-store`. Errors return only `{code}`:
 400 `INVALID_AUDIO`, 413 `AUDIO_LIMIT`, 415 `UNSUPPORTED_FORMAT`, 502
 `PROVIDER_ERROR`, 503 `UNAVAILABLE` or 504 `TIMEOUT`. The browser offers technical
 retry states and never grades the attempt.
@@ -146,9 +150,16 @@ Spanish. Model id/revision come from the reviewed baseline manifest packaged by
 Gradle. They describe the expected deployment; use the checksum-verified baseline.
 The transport cannot attest an arbitrary service running on that local port.
 
-Completed snapshots and action contracts remain unchanged. The hypothesis lives
-only with the transient clip; context changes/cancellation invalidate late
-results. No private data is stored or logged. Browser abort does not promise
+Action contracts and the mathematical snapshot remain unchanged. FARO-013 adds
+a random browser-local attempt identifier and keeps one separate immutable
+voice record in memory. A valid response includes the exact unconfirmed
+hypothesis and provenance; technical errors retain only stable codes and known
+durations, without model/latency placeholders. Client decoding projects only
+allowlisted response fields. Permission/empty-media capture errors stay local
+and differ from an ASR `EMPTY` hypothesis. Starting a retry replaces the record;
+cancel/delete, context changes, hidden/leaving and unmount clear it and invalidate
+late results. There is no durable storage, retry history or general transcript
+logging; FARO-025 owns future session persistence. Browser abort does not promise
 that inference already accepted stops immediately; backend deadlines still apply.
 See [verification](verification/browser-asr-integration.md). The provider veto
 and endpoint admission are enforced by the merged FARO-040 implementation.

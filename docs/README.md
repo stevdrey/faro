@@ -22,6 +22,7 @@ All project documentation and GitHub work items are written in English. The user
 | [Explicit attempt completion verification](verification/explicit-attempt-completion.md) | FARO-008 shared in-memory snapshot, explicit finish, lifecycle, and checks |
 | [Browser voice capture verification](verification/browser-voice-capture.md) | FARO-011 explicit consent, transient clips, lifecycle cleanup and synthetic browser checks |
 | [Browser ASR integration verification](verification/browser-asr-integration.md) | FARO-012 synthetic preview, normalization, local adapter, retries and real smoke test |
+| [Safe speech metadata verification](verification/safe-speech-metadata.md) | FARO-013 attempt-local voice observations, durations, privacy and lifecycle checks |
 | [Spoken guidance verification](verification/spoken-guidance.md) | FARO-009 prerecorded clips, replay/stop, failure handling, privacy, and checks |
 | [Action contract v2](../contracts/actions/v2/README.md) | Explicit decena/unit exchanges and replay of available/removed pieces |
 | [Supply-chain security](08-supply-chain-security.md) | npm install-script lockdown, Gradle verification, secure CI and reviews |

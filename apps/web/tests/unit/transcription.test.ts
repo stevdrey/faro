@@ -6,7 +6,7 @@ import { readTranscription, TranscriptionController } from '../../src/features/r
 import type { Transcription } from '../../src/features/recording/transcription.ts'
 
 const result: Transcription = { schemaVersion: 1, transcript: 'seis', languageTag: 'es', engineId: 'synthetic',
-  modelId: 'test', modelVersion: '1', latencyMs: 1, status: 'TRANSCRIBED' }
+  modelId: 'test', modelVersion: '1', latencyMs: 1, audioDurationMs: 0, status: 'TRANSCRIBED' }
 const blob = new Blob(['synthetic'])
 function pending<T>() {
   let resolve!: (value: T) => void
@@ -28,9 +28,25 @@ test('validates the technical result rather than trusting malformed provider JSO
   assert.ok(Object.isFrozen(readTranscription(result)))
   for (const value of [null, {}, { ...result, schemaVersion: 2 }, { ...result, status: 'CORRECT' },
     { ...result, latencyMs: -1 }, { ...result, latencyMs: NaN }, { ...result, transcript: '' },
-    { ...result, status: 'EMPTY' }, { ...result, engineId: null }]) {
+    { ...result, status: 'EMPTY' }, { ...result, engineId: null },
+    ...[undefined, -1, NaN, 30_001, .5, '1'].map(audioDurationMs => ({ ...result, audioDurationMs }))]) {
     assert.throws(() => readTranscription(value), /provider/)
   }
+  assert.deepEqual(readTranscription({ ...result, audio: blob, exception: 'synthetic private vendor data' }), result)
+})
+
+test('ASR failures and deadlines retain only the known normalized duration, without model identity', async () => {
+  const { controller } = fixture(async () => new ArrayBuffer(3200), async () => { throw new AudioError('unavailable') })
+  await controller.start(blob)
+  assert.deepEqual(controller.state, { busy: false, error: 'unavailable', audioDurationMs: 100 })
+  const response = pending<Transcription>()
+  const waiting = fixture(async () => new ArrayBuffer(3200), () => response.promise)
+  const work = waiting.controller.start(blob)
+  await Promise.resolve()
+  waiting.timeout()
+  response.resolve(result)
+  await work
+  assert.deepEqual(waiting.controller.state, { busy: false, error: 'timeout', audioDurationMs: 100 })
 })
 test('normalizes before sending, emits a result, and releases its timeout', async () => {
   const { controller, cleared } = fixture()

@@ -12,6 +12,7 @@ import { DemoActivities } from '../../src/App.tsx'
 import { useAttemptCompletion } from '../../src/features/shared/use-attempt-completion.ts'
 import { exerciseFor, initialSelection } from '../../src/features/shared/activity-selection.ts'
 import type { CompletedAttempt, CompletedTrace } from '../../src/features/shared/attempt-completion.ts'
+import type { SpeechRecord } from '../../src/features/recording/speech-record.ts'
 import '../../src/styles.css'
 
 export interface TestEvidence {
@@ -22,6 +23,7 @@ export interface TestEvidence {
 
 interface AttemptEvidence {
   current: CompletedAttempt | null
+  speechRecord: SpeechRecord | null
   deliveries: CompletedAttempt[]
   /** Commits observed after the controller mounted, so tests can wait for it. */
   effects: number
@@ -36,10 +38,14 @@ declare global {
   }
 }
 window.screenEvidence = { completions: [], frozen: false, resets: 0 }
-window.attemptEvidence = { current: null, deliveries: [], effects: 0 }
+window.attemptEvidence = { current: null, speechRecord: null, deliveries: [], effects: 0 }
 
 function AppHarness() {
   const completion = useAttemptCompletion(exerciseFor(initialSelection).exerciseId)
+  useEffect(() => {
+    window.attemptEvidence.speechRecord = completion.state.speechRecord
+    return () => { window.attemptEvidence.speechRecord = null }
+  }, [completion.state.speechRecord])
   useEffect(() => {
     window.attemptEvidence.effects++
     const attempt = completion.state.completedAttempt

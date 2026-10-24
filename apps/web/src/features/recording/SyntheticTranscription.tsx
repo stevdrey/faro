@@ -4,6 +4,8 @@ import type { RecordedClip } from './capture.ts'
 import { TranscriptionController } from './transcription.ts'
 import type { AudioErrorCode } from './normalize.ts'
 import { preventRepeatedActivation } from '../shared/completion.ts'
+import { transcriptionRecord } from './speech-record.ts'
+import type { SpeechRecord } from './speech-record.ts'
 
 const messages: Record<AudioErrorCode, string> = {
   unsupported: 'Este formato de audio no se puede transcribir aquí. Podés volver a grabar o seguir con la actividad.',
@@ -15,18 +17,23 @@ const messages: Record<AudioErrorCode, string> = {
 }
 
 /** Explicitly enabled synthetic preview using FARO-040 admission; not an adult review or consent gate. */
-export function SyntheticTranscription({ clip }: { clip: RecordedClip }) {
+export function SyntheticTranscription({ clip, attemptId, recordSpeech }: {
+  clip: RecordedClip; attemptId: string; recordSpeech: (attemptId: string, record: SpeechRecord | null) => void
+}) {
   const [controller] = useState(() => new TranscriptionController())
   const [state, setState] = useState(controller.state)
   const [confirmed, setConfirmed] = useState(false)
   useEffect(() => {
-    const unsubscribe = controller.subscribe(setState)
+    const unsubscribe = controller.subscribe(next => {
+      setState(next)
+      recordSpeech(attemptId, transcriptionRecord(attemptId, clip.durationMs, next))
+    })
     // Hiding/pagehide cancel the parent capture, which drops the clip and unmounts this preview.
     return () => {
       unsubscribe()
       controller.cancel()
     }
-  }, [controller])
+  }, [controller, attemptId, clip, recordSpeech])
   return <div className="synthetic-transcription">
     <p>Prueba técnica: solo audio sintético, con procesamiento local. Esta vista previa no habilita el uso con audio infantil.</p>
     <label><input type="checkbox" checked={confirmed} onChange={event => {
