@@ -2,10 +2,12 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import benchmark as bench
@@ -50,6 +52,44 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.store.restore()["clips"], [])
         self.assertEqual(list(self.root.glob("*.wav")), [])
 
+    def test_window_starts_at_first_retained_clip_not_guide_start(self):
+        self.now += 3600  # The guide sat idle for an hour with an empty session.
+        self.store.save([self.clip()])
+        expected = self.store.info()["expires_at_utc"]
+        self.now += 60
+        self.store.save([self.clip("two")])
+        self.assertEqual(self.store.info()["expires_at_utc"], expected)
+        self.now += TTL_SECONDS - 61
+        self.assertEqual(len(self.store.restore()["clips"]), 2)
+        self.now += 1
+        self.assertEqual(self.store.restore()["clips"], [])
+
+    def test_identical_checkpoint_is_not_rewritten(self):
+        self.store.save([self.clip(), self.clip("two")])
+        with patch.object(self.store, "_atomic", wraps=self.store._atomic) as atomic:
+            self.store.save([self.clip(), self.clip("two")])
+        atomic.assert_not_called()
+
+    def test_crash_while_replacing_clip_leaves_contiguous_verifiable_prefix(self):
+        self.store.save([self.clip(), self.clip("two")])
+        changed = bench.wav_bytes(bytes(30000))
+        original = self.store._atomic
+
+        def crash(name, content):
+            if name == "one.wav":
+                raise OSError("simulated crash")
+            return original(name, content)
+        with patch.object(self.store, "_atomic", side_effect=crash), self.assertRaises(OSError):
+            self.store.save([{"id": "one", "kind": "speech", "wav": changed}])
+        self.store.close()
+        self.store = RecoveryStore(self.root, ["one", "two"], "reference", clock=lambda: self.now)
+        self.assertEqual(self.store.restore()["clips"], [])
+        deadline = self.store.info()["expires_at_utc"]
+        self.now += 60
+        self.store.save([{"id": "one", "kind": "speech", "wav": changed}, self.clip("two")])
+        self.assertEqual([c["id"] for c in self.store.restore()["clips"]], ["one", "two"])
+        self.assertEqual(self.store.info()["expires_at_utc"], deadline)  # Leftover audio keeps its deadline.
+
     def test_clear_rotates_session_and_rejects_late_write(self):
         session = self.store.info()["session_id"]
         self.store.save([self.clip()], session_id=session)
@@ -83,8 +123,15 @@ class RecoveryTests(unittest.TestCase):
         self.store.save([self.clip()])
         self.store.close()
         with self.assertRaisesRegex(RecoveryError, "RECOVERY_MANIFEST_INVALID"):
-            RecoveryStore(self.root, ["one", "two"], "changed")
+            RecoveryStore(self.root, ["one", "two"], "changed", clock=lambda: self.now)
         self.assertTrue((self.root / "one.wav").exists())
+        # Invalid metadata stays fail-closed, but audio never outlives the 24-hour limit.
+        stale = self.now - TTL_SECONDS
+        os.utime(self.root / "one.wav", (stale, stale))
+        with self.assertRaisesRegex(RecoveryError, "RECOVERY_MANIFEST_INVALID"):
+            RecoveryStore(self.root, ["one", "two"], "changed", clock=lambda: self.now)
+        self.assertFalse((self.root / "one.wav").exists())
+        self.assertTrue((self.root / "manifest.json").exists())
 
 
 if __name__ == "__main__":

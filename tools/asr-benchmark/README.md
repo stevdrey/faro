@@ -173,8 +173,11 @@ bytes, manifest/model ID and checksum are independently verified as small.
 **Comparar base y small** submits one validated recording set. The server admits
 both installed adapters before sending any audio, canonicalizes each WAV once,
 then passes the same immutable clip/byte objects to base followed by small.
-Each gets one excluded warm-up and three measured passes: 39 measured requests
-per model on 12 unique speech clips plus generated silence. Inference is serial;
+Each gets one excluded warm-up, both run before any scored request so a small
+warm-up failure aborts without discarding base results, then three measured
+passes: 39 measured requests per model on 12 unique speech clips plus generated
+silence. Admission hashes each model file once per guide process and re-hashes it
+whenever its identity, size or modification time changes. Inference is serial;
 the fixed order and shared host load can affect timings. Model loading is excluded,
 and each memory peak is that container's lifetime peak, including previous use.
 Two resident models also consume combined host resources beyond those per-model
@@ -228,12 +231,19 @@ generation so Stop, Cancel and the 30-second limit can release the microphone.
 Invalid/corrupt/symlink files fail closed without logging their contents. A failed
 checkpoint leaves the pending browser recording available for retry.
 
-Checkpoints expire **24 hours from that recovery session's creation**, without
-extending the deadline on each save. The running guide purges expired files at
-most about one minute later and checks expiry before every recovery/save. If the
-guide/machine is stopped, cleanup occurs on the next start/access; this is not
-an OS-scheduled deletion guarantee while the machine is off. Invalid metadata
-requires explicit operator cleanup rather than guessing its contents.
+Checkpoints expire **24 hours after the session's first retained clip**, without
+extending the deadline on later saves (an empty session holds no audio). The
+running guide purges expired files at most about one minute later and checks
+expiry before every recovery/save. When an expiry rotates the session, the open
+page adopts the new session on its next save or comparison and re-checkpoints its
+accepted clips once. If the guide/machine is stopped, cleanup occurs on the next
+start/access; this is not an OS-scheduled deletion guarantee while the machine is
+off. Invalid metadata (including a changed reference fixture) still fails closed
+and requires explicit operator cleanup, but known clip WAVs and staged files whose
+modification time is 24 hours old are deleted on every start attempt and purge.
+Replacing a checkpoint first shrinks the manifest to the preceding contiguous
+clips, so an interruption never leaves a checksum that describes missing bytes;
+identical re-saves write nothing.
 
 Hiding/closing clears browser audio/results but intentionally preserves the
 temporary disk checkpoint. **Borrar todo, incluido el respaldo** and withdrawing

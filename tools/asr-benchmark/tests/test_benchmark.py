@@ -185,6 +185,11 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result["scores"]["wer_clips"], 0)
         self.assertNotIn("PRIVATE", json.dumps(result))
 
+    def test_prewarmed_measurement_sends_no_second_warmup(self):
+        adapter = self.adapter()
+        bench.measure([self.clip()], adapter, 1, warmed=True)
+        self.assertEqual(adapter.transcribe.call_count, 1)
+
     def test_warmup_failure_aborts_without_publishing_measurements(self):
         adapter = self.adapter()
         adapter.transcribe.side_effect = bench.BenchmarkError("PROVIDER_ERROR")
@@ -332,8 +337,42 @@ class AdapterTests(unittest.TestCase):
                         bench.Whisper()
                     http.assert_not_called()
 
+    def test_any_runtime_instance_error_leaves_adapter_as_benchmark_error(self):
+        class ForeignError(Exception):
+            pass  # A separately loaded runtime module (e.g. small) has its own class.
+        runtime = Mock(BaselineError=ForeignError)
+        runtime.multipart.return_value = (b"", {})
+        runtime.local_json.side_effect = ForeignError("PRIVATE")
+        runtime.run_tool.side_effect = ForeignError("PRIVATE")
+        adapter = object.__new__(bench.Whisper)
+        adapter.runtime, adapter.identity = runtime, "a" * 64
+        with self.assertRaisesRegex(bench.BenchmarkError, "^PROVIDER_ERROR$"):
+            adapter.transcribe(b"audio")
+        with self.assertRaisesRegex(bench.BenchmarkError, "^RESOURCE_COUNTERS_UNAVAILABLE$"):
+            adapter.resources()
+
+    def test_unchanged_model_is_hashed_once_per_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "model.bin"
+            path.write_bytes(b"model")
+            runtime, spec = Mock(), {"sha256": "a" * 64}
+            bench.verify_model_once(runtime, path, spec)
+            bench.verify_model_once(runtime, path, spec)
+            self.assertEqual(runtime.verify_model.call_count, 1)
+            path.write_bytes(b"other")
+            bench.os.utime(path, ns=(1, 1))
+            bench.verify_model_once(runtime, path, spec)
+            self.assertEqual(runtime.verify_model.call_count, 2)
+            runtime.verify_model.side_effect = bench.baseline.BaselineError("MODEL_CHECKSUM_MISMATCH")
+            path.write_bytes(b"third")
+            with self.assertRaises(bench.baseline.BaselineError):
+                bench.verify_model_once(runtime, path, spec)
+            with self.assertRaises(bench.baseline.BaselineError):
+                bench.verify_model_once(runtime, path, spec)  # Failures are never cached.
+
     def test_empty_is_scored_but_invalid_or_oversized_response_is_failure(self):
         adapter = object.__new__(bench.Whisper)
+        adapter.runtime = bench.baseline
         for response in ({"text": ""}, {"text": "   "}, {"text": "seis"},
                          {"text": 1}, {"text": "x" * 16001}, {"error": "private body", "text": "six"}):
             with patch.object(bench.baseline, "local_json", return_value=response) as http:
@@ -347,7 +386,7 @@ class AdapterTests(unittest.TestCase):
 
     def test_resource_parse_and_missing_cgroup_failure(self):
         adapter = object.__new__(bench.Whisper)
-        adapter.identity = "a" * 64
+        adapter.runtime, adapter.identity = bench.baseline, "a" * 64
         with patch.object(bench.baseline, "run_tool", return_value="usage_usec 123\nuser_usec 100\n456\n789\n"):
             self.assertEqual(adapter.resources(), {"cpu_usec": 123, "memory_bytes": 456, "memory_peak_bytes": 789})
         with patch.object(bench.baseline, "run_tool", return_value="private diagnostic"):

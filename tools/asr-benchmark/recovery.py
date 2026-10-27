@@ -136,17 +136,27 @@ class RecoveryStore:
         self._write(value)
         return value
 
+    def _sweep_stale_audio(self):
+        """Delete known WAVs/staged files older than the TTL, using only their mtime."""
+        for path in (*self.root.glob("*.wav"), *self.root.glob(".stage-*")):
+            if ((path.stem in self.sample_ids or path.name.startswith(".stage-"))
+                    and self.clock() - path.lstat().st_mtime >= TTL_SECONDS):
+                path.unlink()
+
     def purge(self):
         with self.lock:
-            value = self._read()
+            try:
+                value = self._read()
+            except RecoveryError:
+                # Stay fail-closed for invalid metadata, but never past the 24-hour limit.
+                self._sweep_stale_audio()
+                raise
             if value is not None and value["expires_at"] <= self.clock():
                 self._delete()
                 value = None
             if value is None:
                 # A crash before the first manifest cannot leave audio unbounded.
-                for path in self.root.glob("*.wav"):
-                    if path.stem in self.sample_ids and self.clock() - path.lstat().st_mtime >= TTL_SECONDS:
-                        path.unlink()
+                self._sweep_stale_audio()
                 value = self._new()
             return value
 
@@ -168,11 +178,27 @@ class RecoveryStore:
                 item, raw = clip["id"], clip["wav"]
                 if item not in self.sample_ids:
                     raise RecoveryError("RECOVERY_CLIP_INVALID")
-                if item not in value["clips"] and self.sample_ids.index(item) != len(value["clips"]):
+                position = self.sample_ids.index(item)
+                if item not in value["clips"] and position != len(value["clips"]):
                     raise RecoveryError("RECOVERY_INCOMPLETE_SEQUENCE")
                 validate_wav(raw)
+                entry = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                if value["clips"].get(item) == entry:
+                    continue  # Already checkpointed; no rewrite.
+                if not value["clips"] and not any((self.root / (key + ".wav")).exists()
+                                                  for key in self.sample_ids):
+                    # The 24-hour window starts with the first retained audio, not guide start;
+                    # leftover audio from an interrupted replacement keeps the original deadline.
+                    value["created_at"] = self.clock()
+                    value["expires_at"] = value["created_at"] + TTL_SECONDS
+                elif item in value["clips"]:
+                    # Replacing different bytes: first shrink the manifest to the prefix before
+                    # this clip, so a crash at any point leaves a contiguous, verifiable prefix.
+                    value["clips"] = {key: value["clips"][key] for key in self.sample_ids[:position]
+                                      if key in value["clips"]}
+                    self._write(value)
                 self._atomic(item + ".wav", raw)
-                value["clips"][item] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                value["clips"][item] = entry
                 self._write(value)
             return self.info()
 

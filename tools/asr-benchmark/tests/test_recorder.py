@@ -32,7 +32,9 @@ class AdultCorpusTests(unittest.TestCase):
         small.config = copy.deepcopy(base.config)
         small.config["model"].update(id="small-multilingual", sha256="a" * 64)
         calls = []
-        def measure(clips, adapter, repeats, *, on_first_pass):
+        def measure(clips, adapter, repeats, *, on_first_pass, warmed):
+            self.assertTrue(warmed)
+            self.assertEqual(base.transcribe.call_count + small.transcribe.call_count, 2)
             calls.append((clips, [clip["wav"] for clip in clips], adapter, repeats))
             for clip in clips:
                 on_first_pass(clip, "seis" if adapter is base else "siete", False)
@@ -58,6 +60,25 @@ class AdultCorpusTests(unittest.TestCase):
             with self.assertRaisesRegex(recorder.bench.BenchmarkError, "^SMALL_RUNTIME_UNAVAILABLE$"):
                 recorder.adult_report(payload(), compare_small=True)
             measure.assert_not_called()
+
+    def test_small_warmup_failure_aborts_before_base_scoring(self):
+        base, small = Mock(), Mock()
+        small.transcribe.side_effect = recorder.bench.BenchmarkError("PROVIDER_ERROR")
+        with patch.object(recorder.bench, "Whisper", side_effect=[base, small]), \
+                patch("models.small_runtime", return_value=Mock()), \
+                patch.object(recorder.bench, "measure") as measure:
+            with self.assertRaisesRegex(recorder.bench.BenchmarkError, "PROVIDER_ERROR"):
+                recorder.adult_report(payload(), compare_small=True)
+        self.assertEqual(base.transcribe.call_count, 1)  # Warm-up only; no scored audio.
+        measure.assert_not_called()
+
+    def test_silence_control_follows_corpus_configuration(self):
+        config, digest = recorder.bench.corpus()
+        with patch.object(recorder.bench, "corpus", return_value=({**config, "silence_seconds": 1.5}, digest)):
+            clips, dataset = recorder.adult_clips(payload())
+        with wave.open(io.BytesIO(clips[-1]["wav"]), "rb") as wav:
+            self.assertEqual(wav.getnframes(), 24000)
+        self.assertEqual(clips[-1]["audio_seconds"], 1.5)
 
     def test_same_phrase_references_canonical_pcm_and_separate_silence(self):
         clips, dataset = recorder.adult_clips(payload())
@@ -194,6 +215,22 @@ class HttpTests(unittest.TestCase):
             with patch.object(recorder, "adult_report", side_effect=error): handler.do_POST()
             self.assertNotIn(b"PRIVATE", handler.respond.call_args.args[1])
             self.assertFalse(handler.server.busy.locked())
+
+    def test_recovery_measure_decodes_once_and_reuses_clips(self):
+        body = json.dumps({**payload(), "recovery_session_id": "a" * 32}).encode()
+        handler = self.handler(**{"Content-Length": str(len(body))})
+        handler.rfile = io.BytesIO(body)
+        handler.server.recovery = Mock()
+        handler.server.recovery.info.return_value = {"enabled": True}
+        with patch.object(recorder, "adult_clips", wraps=recorder.adult_clips) as decode, \
+                patch.object(recorder.bench, "Whisper", return_value=Mock()), \
+                patch.object(recorder.bench, "measure", return_value={"aggregate": 1}), \
+                patch.object(recorder.bench, "make_report", return_value={"candidates": []}):
+            handler.do_POST()
+        self.assertEqual(handler.respond.call_args.args[0], 200)
+        self.assertEqual(decode.call_count, 1)
+        saved = handler.server.recovery.save.call_args.args[0]
+        self.assertEqual(len(saved), 13)
 
     def test_success_does_not_echo_request(self):
         handler = self.handler(**{"Content-Length": "2"})

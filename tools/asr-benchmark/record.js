@@ -1,7 +1,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 let samples = [], clips = [], pending = null, previewUrl = null;
-let recorder = null, stream = null, timer = null, tick = null, generation = 0, busy = false, abort = null;
+let recorder = null, stream = null, timer = null, tick = null, generation = 0, busy = false, abort = null, capturing = false;
 let comparisonUrls = [];
 let settingsLoaded = false, compareSmall = false, recovery = { enabled: false }, comparisonSets = {};
 
@@ -14,14 +14,14 @@ function discardPending() {
 }
 function render() {
   const complete = samples.length > 0 && clips.length === samples.length;
-  $("step").textContent = complete ? "Las 12 frases están listas." : `Frase ${clips.length + 1} de ${samples.length}`;
+  $("step").textContent = complete ? `Las ${samples.length} frases están listas.` : `Frase ${clips.length + 1} de ${samples.length}`;
   $("phrase").textContent = complete ? "Ya podés medir tus grabaciones." : samples[clips.length]?.text ?? "";
   $("progress").value = clips.length;
   $("record").disabled = busy || !!recorder || complete || !$("adult").checked || !samples.length || !settingsLoaded
     || (recovery.enabled && recovery.clip_count > 0 && clips.length === 0);
   $("record").textContent = pending ? "Grabar de nuevo" : "Grabar";
   $("stop").disabled = !recorder || recorder.state !== "recording";
-  $("cancel").disabled = !!abort || (!recorder && !busy);
+  $("cancel").disabled = !capturing; // Only permission, recording or audio preparation; never saves/deletes.
   $("confirmed").disabled = !pending || busy;
   $("accept").disabled = !pending || busy || !$("confirmed").checked;
   $("measure").disabled = !complete || busy || !$("adult").checked;
@@ -31,7 +31,7 @@ function render() {
 }
 function cancelCapture() {
   generation++; if (recorder?.state === "recording") recorder.stop(); recorder = null;
-  stopTracks(); busy = false; discardPending(); render();
+  stopTracks(); busy = false; capturing = false; discardPending(); render();
 }
 function resetComparisons() {
   clearComparisons(); comparisonSets = {}; $("model-choice").replaceChildren();
@@ -48,7 +48,8 @@ function clearAll({ deleteRecovery = false } = {}) {
   if (deleteRecovery && recovery.enabled) {
     const ownGeneration = generation; busy = true; render();
     localPost("recovery-clear", {}).then(info => {
-      if (ownGeneration === generation) { updateRecovery(info); status("Grabaciones, respaldo y resultados borrados."); }
+      updateRecovery(info); // Server state is authoritative even if the page moved on meanwhile.
+      if (ownGeneration === generation) status("Grabaciones, respaldo y resultados borrados.");
     }).catch(() => { if (ownGeneration === generation) status("No se pudo borrar el respaldo del disco. Podés volver a intentar Borrar todo."); })
       .finally(() => { if (ownGeneration === generation) { busy = false; render(); } });
   }
@@ -56,8 +57,37 @@ function clearAll({ deleteRecovery = false } = {}) {
 async function localPost(path, payload, signal) {
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
     signal, body: JSON.stringify(payload) });
-  if (!response.ok) throw new Error();
+  if (!response.ok) {
+    const error = new Error(); error.code = await response.json().then(body => body.code, () => undefined);
+    throw error;
+  }
   return response.json();
+}
+function checkpoint(clip) {
+  return localPost("recovery-save", { adult_own_voice: true, references_confirmed: true,
+    recovery_session_id: recovery.session_id, clip: { id: clip.id, wav_base64: base64(clip.wav) } });
+}
+async function resyncRecovery(ownGeneration) {
+  // A 24-hour expiry rotates the server session: adopt it and re-checkpoint accepted clips once.
+  const previous = recovery.session_id, response = await fetch("settings");
+  if (!response.ok) throw new Error();
+  const settings = await response.json();
+  if (ownGeneration !== generation) return false;
+  updateRecovery(settings.recovery);
+  if (!recovery.enabled || recovery.session_id === previous) return false;
+  for (const clip of clips) {
+    const info = await checkpoint(clip);
+    if (ownGeneration !== generation) return false;
+    updateRecovery(info);
+  }
+  return true;
+}
+async function retryAfterRecoveryRotation(ownGeneration, request) {
+  try { return await request(); }
+  catch (error) {
+    if (error.code !== "RECOVERY_UNAVAILABLE" || !(await resyncRecovery(ownGeneration))) throw error;
+    return request();
+  }
 }
 function updateRecovery(info) {
   recovery = { enabled: info.enabled, session_id: info.session_id, clip_count: info.clip_count,
@@ -176,7 +206,7 @@ async function normalize(blob) {
   return encodeWav((await offline.startRendering()).getChannelData(0));
 }
 $("record").onclick = async () => {
-  const ownGeneration = ++generation; discardPending(); busy = true; render(); status("Esperando permiso del micrófono…");
+  const ownGeneration = ++generation; discardPending(); busy = true; capturing = true; render(); status("Esperando permiso del micrófono…");
   try {
     const granted = await navigator.mediaDevices.getUserMedia({ audio: true });
     if (ownGeneration !== generation) { granted.getTracks().forEach(track => track.stop()); return; }
@@ -189,11 +219,12 @@ $("record").onclick = async () => {
       try {
         const wav = await normalize(new Blob(chunks, { type: active.mimeType }));
         if (ownGeneration !== generation) return;
+        capturing = false;
         pending = wav; previewUrl = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
         $("preview").src = previewUrl; $("preview").hidden = false;
         status("Escuchá la grabación. Si cambiaste alguna palabra, grabala de nuevo.");
       } catch { if (ownGeneration === generation) status("No se pudo preparar el audio. Grabá de nuevo."); }
-      finally { if (ownGeneration === generation) { busy = false; render(); } }
+      finally { if (ownGeneration === generation) { busy = false; capturing = false; render(); } }
     };
     active.start(); busy = false; const start = Date.now();
     status("Grabando · 0 s"); tick = setInterval(() => status(`Grabando · ${Math.floor((Date.now() - start) / 1000)} s`), 500);
@@ -203,7 +234,7 @@ $("record").onclick = async () => {
   }
 };
 $("stop").onclick = () => { if (recorder?.state === "recording") recorder.stop(); };
-$("cancel").onclick = () => { cancelCapture(); status("Grabación cancelada."); };
+$("cancel").onclick = () => { if (!capturing) return; cancelCapture(); status("Grabación cancelada."); };
 $("adult").onchange = () => { if (!$("adult").checked) clearAll({ deleteRecovery: true }); render(); };
 $("confirmed").onchange = render;
 $("accept").onclick = async () => {
@@ -213,8 +244,7 @@ $("accept").onclick = async () => {
   try {
     if (recovery.enabled) {
       status("Guardando respaldo privado…");
-      const info = await localPost("recovery-save", { adult_own_voice: true, references_confirmed: true,
-        recovery_session_id: recovery.session_id, clip: { id: clip.id, wav_base64: base64(clip.wav) } });
+      const info = await retryAfterRecoveryRotation(ownGeneration, () => checkpoint(clip));
       if (ownGeneration !== generation) return;
       updateRecovery(info);
     }
@@ -250,9 +280,10 @@ $("measure").onclick = async () => {
   status(compareSmall ? "Comparando base y small con los mismos audios. Puede tardar varios minutos…"
     : "Midiendo con Whisper en tu equipo. Puede tardar alrededor de un minuto…");
   try {
-    const report = await localPost("measure", { adult_own_voice: true, references_confirmed: true,
+    const report = await retryAfterRecoveryRotation(ownGeneration, () => localPost("measure", {
+      adult_own_voice: true, references_confirmed: true,
       recovery_session_id: recovery.enabled ? recovery.session_id : undefined,
-      clips: clips.map(c => ({ id: c.id, wav_base64: base64(c.wav) })) }, controller.signal);
+      clips: clips.map(c => ({ id: c.id, wav_base64: base64(c.wav) })) }, controller.signal));
     if (ownGeneration !== generation) return;
     const result = report.candidates[0], score = result.scores;
     $("summary").textContent = `Números críticos: ${score.all_critical_numbers_correct} de ${score.speech_clips} frases. ` +
@@ -299,6 +330,6 @@ $("model-choice").onchange = () => showComparisons(comparisonSets[$("model-choic
 document.addEventListener("visibilitychange", () => { if (document.hidden) clearAll(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshSettings(); });
 window.addEventListener("pagehide", clearAll);
-fetch("corpus").then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { samples = data; render(); })
+fetch("corpus").then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { samples = data; $("progress").max = data.length; render(); })
   .catch(() => status("No se pudieron cargar las frases. Recargá esta página."));
 refreshSettings();

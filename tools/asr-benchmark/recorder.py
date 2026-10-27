@@ -52,7 +52,8 @@ def adult_clips(payload):
         clips.append({**sample, "kind": "speech", "wav": bench.wav_bytes(pcm),
                       "audio_seconds": frames / 16000})
     clips.append({"kind": "silence", "text": "", "critical_numbers": [],
-                  "wav": bench.wav_bytes(bytes(64000)), "audio_seconds": 2})
+                  "wav": bench.wav_bytes(bytes(round(config["silence_seconds"] * 32000))),
+                  "audio_seconds": config["silence_seconds"]})
     dataset = {"id": "adult-own-voice-local", "kind": "adult-own-voice",
                "reference_manifest_sha256": digest, "unique_clips": len(clips),
                "audio_seconds": round(sum(c["audio_seconds"] for c in clips), 3),
@@ -78,8 +79,8 @@ def observer(comparisons):
     return observe
 
 
-def adult_report(payload, *, compare_small=False):
-    clips, dataset = adult_clips(payload)
+def adult_report(payload, *, compare_small=False, prepared=None):
+    clips, dataset = prepared or adult_clips(payload)
     adapter = bench.Whisper()
     small = None
     if compare_small:
@@ -88,14 +89,18 @@ def adult_report(payload, *, compare_small=False):
             small = bench.Whisper(runtime=small_runtime())  # Admit both models before any audio is sent.
         except Exception:
             raise bench.BenchmarkError("SMALL_RUNTIME_UNAVAILABLE") from None
+    # Warm every admitted model before scoring, so a later warm-up failure discards nothing.
+    for model in (adapter, small):
+        if model is not None:
+            bench.warm_up(clips, model)
     comparisons = []
-    result = bench.measure(clips, adapter, 3, on_first_pass=observer(comparisons))
+    result = bench.measure(clips, adapter, 3, on_first_pass=observer(comparisons), warmed=True)
     report = bench.make_report(adapter, dataset, result, synthesis=False)
     # Only the no-store adult response receives first-pass details; never the CLI/report builder.
     report["phrase_comparisons"] = comparisons
     if small is not None:
         small_comparisons = []
-        result = bench.measure(clips, small, 3, on_first_pass=observer(small_comparisons))
+        result = bench.measure(clips, small, 3, on_first_pass=observer(small_comparisons), warmed=True)
         report["candidates"].insert(1, bench.candidate_result(small, result))
         report["small_phrase_comparisons"] = small_comparisons
         report["comparison"] = {"matched_inputs": "identical canonical WAV bytes from one validated request",
@@ -192,12 +197,14 @@ class Handler(BaseHTTPRequestHandler):
                                     session_id=payload["recovery_session_id"])
                 self.respond(200, json.dumps(result).encode())
                 return
+            if store is not None and not isinstance(payload.get("recovery_session_id"), str):
+                raise RecoveryError("RECOVERY_CONFIRMATION_REQUIRED")
+            prepared = None
             if store is not None:
-                if not isinstance(payload.get("recovery_session_id"), str):
-                    raise RecoveryError("RECOVERY_CONFIRMATION_REQUIRED")
-                clips, _ = adult_clips(payload)
-                store.save(clips, session_id=payload.get("recovery_session_id"))
-            report = adult_report(payload, compare_small=getattr(self.server, "compare_small", False))
+                prepared = adult_clips(payload)  # Decoded once; reused for the checkpoint and measurement.
+                store.save(prepared[0], session_id=payload["recovery_session_id"])
+            report = adult_report(payload, compare_small=getattr(self.server, "compare_small", False),
+                                  prepared=prepared)
             if store is not None:
                 report["recovery"] = store.info()
             self.respond(200, json.dumps(report, ensure_ascii=False).encode())

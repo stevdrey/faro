@@ -23,9 +23,11 @@ const { chromium } = require(path.resolve(__dirname, '../../../apps/web/node_mod
     const page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(error.message));
     const root = path.resolve(__dirname, '..'), url = 'http://127.0.0.1:8768/synthetic-capture-test/';
-    const clips = [], info = () => ({ enabled: true, session_id: 'synthetic-fixture',
+    const samples = require('../corpus.json').samples;
+    let session = 'synthetic-fixture', restores = 0, rejectedSaves = 0, clearArrived, releaseClear;
+    const clips = [], info = () => ({ enabled: true, session_id: session,
       clip_count: clips.length, ttl_hours: 24, expires_at_utc: '2099-01-01T00:00:00Z' });
-    let restores = 0;
+    const clearSeen = new Promise(resolve => { clearArrived = resolve; });
     // Fulfill every request locally: no running guide or private recovery directory is accessed.
     await page.route('**/*', async route => {
       const request = route.request(), name = request.url().slice(url.length);
@@ -38,7 +40,19 @@ const { chromium } = require(path.resolve(__dirname, '../../../apps/web/node_mod
       } else if (name === 'settings') {
         await route.fulfill({ json: { compare_small: false, recovery: info() } });
       } else if (name === 'recovery-save') {
-        clips.push(request.postDataJSON().clip);
+        const body = request.postDataJSON();
+        if (body.recovery_session_id !== session) {
+          rejectedSaves++;
+          await route.fulfill({ status: 409, json: { code: 'RECOVERY_UNAVAILABLE' } });
+        } else {
+          const index = clips.findIndex(clip => clip.id === body.clip.id);
+          if (index < 0) clips.push(body.clip); else clips[index] = body.clip;
+          await route.fulfill({ json: info() });
+        }
+      } else if (name === 'recovery-clear') {
+        clearArrived();
+        await new Promise(resolve => { releaseClear = resolve; });
+        clips.length = 0; session = 'cleared-session';
         await route.fulfill({ json: info() });
       } else if (name === 'recovery') {
         restores++;
@@ -48,6 +62,7 @@ const { chromium } = require(path.resolve(__dirname, '../../../apps/web/node_mod
       }
     });
     await page.goto(url);
+    await page.waitForFunction(count => document.getElementById('progress').max === count, samples.length);
     await page.locator('#adult').check();
     const start = async () => {
       await page.locator('#record').click();
@@ -110,8 +125,36 @@ const { chromium } = require(path.resolve(__dirname, '../../../apps/web/node_mod
     assert.equal(restores, 1);
     assert.equal(await page.evaluate(() => window.__faroMicTracks.length), tracks);
     assert.equal(await page.evaluate(() => clips.length), 1);
+
+    // A server-side 24-hour expiry rotates the session and drops its audio: the next accept
+    // adopts the new session and re-checkpoints this page's accepted clips before its own.
+    session = 'rotated-session'; clips.length = 0;
+    await start();
+    await page.waitForTimeout(400);
+    await page.locator('#stop').click();
+    await released();
+    await page.waitForFunction(() => !document.getElementById('confirmed').disabled);
+    await page.locator('#confirmed').check();
+    await page.locator('#accept').click();
+    await page.waitForFunction(() => document.getElementById('step').textContent === 'Frase 3 de 12');
+    assert.equal(rejectedSaves, 1);
+    assert.deepEqual(clips.map(clip => clip.id), [samples[0].id, samples[1].id]);
+    assert.equal(await page.evaluate(() => recovery.session_id), 'rotated-session');
+
+    // Cancel cannot interrupt a pending backup deletion, and the deletion result always applies.
+    await page.locator('#clear').click();
+    await clearSeen;
+    assert.equal(await page.locator('#cancel').isDisabled(), true);
+    const beforeCancel = await page.evaluate(() => generation);
+    await page.evaluate(() => document.getElementById('cancel').onclick());
+    assert.equal(await page.evaluate(() => generation), beforeCancel, 'Cancel must not orphan the deletion');
+    releaseClear();
+    await page.waitForFunction(() => recovery.clip_count === 0 && !busy);
+    assert.equal(await page.locator('#record').isEnabled(), true);
+    assert.equal(await page.locator('#restore').isDisabled(), true);
     assert.deepEqual(errors, []);
-    console.log('PASS: recovery blocked during permission/capture; Stop, Cancel and 30-second limit release synthetic tracks; idle recovery works.');
+    console.log('PASS: recovery blocked during permission/capture; Stop, Cancel and 30-second limit release synthetic tracks; '
+      + 'idle recovery works; rotated sessions are re-checkpointed; deletion cannot be cancelled.');
   } finally {
     await browser.close();
   }

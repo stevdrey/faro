@@ -30,6 +30,22 @@ class BenchmarkError(Exception):
     """Stable first-party diagnostics, without raw engine output."""
 
 
+VERIFIED_MODELS = set()
+
+
+def verify_model_once(runtime, path, spec):
+    """Hash once per process; any file identity, size or mtime change forces a full re-hash."""
+    try:
+        info = path.lstat()
+        key = (str(path.resolve()), info.st_ino, info.st_size, info.st_mtime_ns, spec["sha256"])
+    except OSError:
+        key = None
+    if key is None or key not in VERIFIED_MODELS:
+        runtime.verify_model(path, spec)
+        if key is not None:
+            VERIFIED_MODELS.add(key)
+
+
 def corpus():
     raw = (HERE / "corpus.json").read_bytes()
     config = json.loads(raw)
@@ -78,19 +94,21 @@ def prepare(config, directory):
 
 
 class Whisper:
-    """Runtime transport stays here; no changes to app providers or assessment."""
-    runtime = baseline
+    """Runtime transport stays here; no changes to app providers or assessment.
+
+    After admission every runtime failure leaves as BenchmarkError, whichever module
+    instance (base or small) raised it.
+    """
 
     def __init__(self, *, runtime=None):
-        self.runtime = runtime or baseline
-        runtime = self.runtime
+        self.runtime = runtime = runtime or baseline
         host = os.environ.get("DOCKER_HOST", "")
         context = runtime.run_tool(["docker", "context", "inspect", "--format",
                                      "{{.Endpoints.docker.Host}}"], code="DOCKER_UNAVAILABLE").strip()
         if (host and not host.startswith("unix:///")) or not context.startswith("unix:///"):
             raise BenchmarkError("LOCAL_DOCKER_REQUIRED")
         self.config = runtime.manifest()
-        runtime.verify_model(runtime.MODEL_PATH, self.config["model"])
+        verify_model_once(runtime, runtime.MODEL_PATH, self.config["model"])
         self.identity = runtime.owned_container()
         if not self.identity:
             raise BenchmarkError("BASELINE_NOT_RUNNING")
@@ -110,8 +128,8 @@ class Whisper:
             raise BenchmarkError("SERVER_NOT_READY")
 
     def transcribe(self, wav):
-        data, headers = self.runtime.multipart(wav)
         try:
+            data, headers = self.runtime.multipart(wav)
             result = self.runtime.local_json("/inference", data=data, headers=headers,
                                              timeout=self.runtime.INFERENCE_TIMEOUT)
         except self.runtime.BaselineError:
@@ -122,9 +140,12 @@ class Whisper:
         return text
 
     def resources(self):
-        raw = self.runtime.run_tool(["docker", "exec", self.identity, "cat",
-                                 "/sys/fs/cgroup/cpu.stat", "/sys/fs/cgroup/memory.current",
-                                 "/sys/fs/cgroup/memory.peak"], code="RESOURCE_COUNTERS_UNAVAILABLE")
+        try:
+            raw = self.runtime.run_tool(["docker", "exec", self.identity, "cat",
+                                         "/sys/fs/cgroup/cpu.stat", "/sys/fs/cgroup/memory.current",
+                                         "/sys/fs/cgroup/memory.peak"], code="RESOURCE_COUNTERS_UNAVAILABLE")
+        except self.runtime.BaselineError:
+            raise BenchmarkError("RESOURCE_COUNTERS_UNAVAILABLE") from None
         lines = raw.strip().splitlines()
         try:
             cpu = dict(line.split() for line in lines[:-2])
@@ -134,9 +155,19 @@ class Whisper:
             raise BenchmarkError("RESOURCE_COUNTERS_INVALID") from None
 
 
-def measure(clips, adapter, repeats, *, on_first_pass=None):
-    """First pass scores unique clips; later passes measure latency/repeat stability."""
-    adapter.transcribe(clips[0]["wav"])  # One warm-up, excluded from all scored counts.
+def warm_up(clips, adapter):
+    """One excluded request; its failure aborts the run (no report)."""
+    adapter.transcribe(clips[0]["wav"])
+
+
+def measure(clips, adapter, repeats, *, on_first_pass=None, warmed=False):
+    """First pass scores unique clips; later passes measure latency/repeat stability.
+
+    Callers comparing models warm every adapter first and pass warmed=True, so a
+    later model's warm-up failure cannot discard an earlier model's scored run.
+    """
+    if not warmed:
+        warm_up(clips, adapter)
     scores = Scores()
     first = []
     changed = set()
