@@ -9,6 +9,7 @@ import io.github.stevdrey.faro.exercises.ExerciseDefinition;
 import io.github.stevdrey.faro.exercises.ExerciseOperands;
 import io.github.stevdrey.faro.exercises.ExerciseType;
 import io.github.stevdrey.faro.exercises.MissingAddendMath;
+import io.github.stevdrey.faro.exercises.SequenceMath;
 import io.github.stevdrey.faro.exercises.VisualModel;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,6 +75,11 @@ class ExercisePayloadTests {
                     missingAddend.operands().total(), missingAddend.operands().knownAddend());
             assertThat(MissingAddendMath.isCorrect(domain, expectedResult)).isTrue();
             assertThat(MissingAddendMath.isCorrect(domain, expectedResult + 1)).isFalse();
+        }
+        if (payload instanceof ExercisePayload.Sequence sequence) {
+            var domain = new ExerciseOperands.Sequence(sequence.operands().terms());
+            assertThat(SequenceMath.isCorrect(domain, expectedResult)).isTrue();
+            assertThat(SequenceMath.isCorrect(domain, expectedResult + 1)).isFalse();
         }
         assertThat(mapper.readTree(exerciseJson.write(payload))).isEqualTo(json);
     }

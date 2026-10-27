@@ -16,13 +16,19 @@ public record ExerciseDefinition(
         Objects.requireNonNull(operands, "operands");
         Objects.requireNonNull(visualModel, "visualModel");
         Objects.requireNonNull(difficulty, "difficulty");
-        if (operands instanceof ExerciseOperands.MissingAddend missingAddend
-                && expectedResult != missingAddend.solution()) {
-            throw new IllegalArgumentException("expectedResult must match the missing-addend solution");
-        }
-        if (operands instanceof ExerciseOperands.Sequence sequence
-                && expectedResult != SequenceMath.solution(sequence)) {
-            throw new IllegalArgumentException("expectedResult must match the sequence solution");
+        switch (operands) {
+            case ExerciseOperands.MissingAddend missingAddend -> {
+                if (expectedResult != missingAddend.solution()) {
+                    throw new IllegalArgumentException("expectedResult must match the missing-addend solution");
+                }
+            }
+            case ExerciseOperands.Sequence sequence -> {
+                if (expectedResult != SequenceMath.solution(sequence)) {
+                    throw new IllegalArgumentException("expectedResult must match the sequence solution");
+                }
+            }
+            // No subtraction solver exists yet; validating its expectedResult is separate work.
+            case ExerciseOperands.Subtraction ignored -> {}
         }
     }
 

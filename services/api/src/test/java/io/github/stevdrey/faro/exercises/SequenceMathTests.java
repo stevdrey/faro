@@ -25,6 +25,7 @@ class SequenceMathTests {
     void rejectsNonArithmeticAndIncorrectDefinitions() {
         var irregular = new ExerciseOperands.Sequence(List.of(1, 3, 5, 8));
         assertThatIllegalArgumentException().isThrownBy(() -> SequenceMath.solution(irregular));
+        assertThat(SequenceMath.isCorrect(irregular, 11)).isFalse();
         assertThatIllegalArgumentException().isThrownBy(() -> new ExerciseDefinition(
                 "sequence", irregular, VisualModel.NUMBER_LINE, Difficulty.EASY, 10));
         var valid = new ExerciseOperands.Sequence(List.of(30, 28));
@@ -46,13 +47,18 @@ class SequenceMathTests {
             assertThatIllegalArgumentException().isThrownBy(() -> SequenceMath.solution(operands));
             assertThatIllegalArgumentException().isThrownBy(() -> new ExerciseDefinition(
                     "sequence", operands, VisualModel.NUMBER_LINE, Difficulty.EASY, 0));
+            for (int answer : List.of(Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE)) {
+                assertThat(SequenceMath.isCorrect(operands, answer)).isFalse();
+            }
         }
-        assertThatIllegalArgumentException().isThrownBy(() -> SequenceMath.solution(
-                new ExerciseOperands.Sequence(List.of(Integer.MIN_VALUE, 0, Integer.MIN_VALUE))));
+        var wrapping = new ExerciseOperands.Sequence(List.of(Integer.MIN_VALUE, 0, Integer.MIN_VALUE));
+        assertThatIllegalArgumentException().isThrownBy(() -> SequenceMath.solution(wrapping));
+        assertThat(SequenceMath.isCorrect(wrapping, 0)).isFalse();
     }
 
     @Test
     void requiresOperands() {
         assertThatNullPointerException().isThrownBy(() -> SequenceMath.solution(null)).withMessage("operands");
+        assertThatNullPointerException().isThrownBy(() -> SequenceMath.isCorrect(null, 0)).withMessage("operands");
     }
 }
