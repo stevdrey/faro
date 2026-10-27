@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.stevdrey.faro.exercises;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /** Checks explicit subtraction steps without interpreting or correcting the evidence. */
 public final class SubtractionDecompositionMath {
+    public static final int MAX_STEPS = 20;
+
     private SubtractionDecompositionMath() {}
 
     public enum Strategy { VALID, INVALID, INSUFFICIENT }
@@ -17,7 +20,8 @@ public final class SubtractionDecompositionMath {
     public record Result(Strategy strategy, List<Boolean> stepArithmeticCorrect) {
         public Result {
             Objects.requireNonNull(strategy, "strategy");
-            stepArithmeticCorrect = List.copyOf(stepArithmeticCorrect);
+            stepArithmeticCorrect = List.copyOf(
+                    Objects.requireNonNull(stepArithmeticCorrect, "stepArithmeticCorrect"));
         }
     }
 
@@ -28,31 +32,32 @@ public final class SubtractionDecompositionMath {
     public static Result check(ExerciseOperands.Subtraction operands, List<Step> steps) {
         Objects.requireNonNull(operands, "operands");
         var supplied = List.copyOf(Objects.requireNonNull(steps, "steps"));
-        var arithmetic = supplied.stream()
-                .map(step -> (long) step.minuend() - step.part() == step.result())
-                .toList();
-
-        if (operands.subtrahend() == 0) {
-            return new Result(Strategy.INSUFFICIENT, arithmetic);
+        if (supplied.size() > MAX_STEPS) {
+            throw new IllegalArgumentException("A decomposition accepts at most " + MAX_STEPS + " steps");
         }
 
+        var arithmetic = new ArrayList<Boolean>(supplied.size());
         long sum = 0;
         boolean connected = true;
+        boolean invalid = false;
         int previous = operands.minuend();
         for (var step : supplied) {
-            if (step.part() <= 0) {
-                return new Result(Strategy.INVALID, arithmetic);
-            }
-            sum += step.part();
-            if (sum > operands.subtrahend()) {
-                return new Result(Strategy.INVALID, arithmetic);
-            }
+            arithmetic.add((long) step.minuend() - step.part() == step.result());
             connected &= step.minuend() == previous;
             previous = step.result();
+            sum += step.part();
+            invalid |= step.part() <= 0 || sum > operands.subtrahend();
         }
 
-        var strategy = supplied.size() >= 2 && connected && sum == operands.subtrahend()
-                ? Strategy.VALID : Strategy.INSUFFICIENT;
+        Strategy strategy;
+        if (operands.subtrahend() == 0 || !connected) {
+            strategy = Strategy.INSUFFICIENT;
+        } else if (invalid) {
+            strategy = Strategy.INVALID;
+        } else {
+            strategy = supplied.size() >= 2 && sum == operands.subtrahend()
+                    ? Strategy.VALID : Strategy.INSUFFICIENT;
+        }
         return new Result(strategy, arithmetic);
     }
 }

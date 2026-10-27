@@ -37,7 +37,15 @@ public sealed interface ExerciseOperands {
         }
     }
 
-    record Subtraction(int minuend, int subtrahend) implements ExerciseOperands {}
+    /** Non-negative counts with subtrahend <= minuend, matching the web client's rule. */
+    record Subtraction(int minuend, int subtrahend) implements ExerciseOperands {
+        public Subtraction {
+            if (minuend < 0 || subtrahend < 0 || subtrahend > minuend) {
+                throw new IllegalArgumentException(
+                        "A subtraction needs non-negative operands with subtrahend <= minuend");
+            }
+        }
+    }
 
     default ExerciseType type() {
         return switch (this) {
