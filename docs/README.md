@@ -26,6 +26,7 @@ All project documentation and GitHub work items are written in English. The user
 | [Browser ASR integration verification](verification/browser-asr-integration.md) | FARO-012 synthetic preview, normalization, local adapter, retries and real smoke test |
 | [Safe speech metadata verification](verification/safe-speech-metadata.md) | FARO-013 attempt-local voice observations, durations, privacy and lifecycle checks |
 | [Spoken guidance verification](verification/spoken-guidance.md) | FARO-009 prerecorded clips, replay/stop, failure handling, privacy, and checks |
+| [Missing-addend math verification](verification/missing-addend-math.md) | FARO-015 deterministic backend check, domain invariants, and tests |
 | [Action contract v2](../contracts/actions/v2/README.md) | Explicit decena/unit exchanges and replay of available/removed pieces |
 | [Supply-chain security](08-supply-chain-security.md) | npm install-script lockdown, Gradle verification, secure CI and reviews |
 | [ADR-0001](adr/0001-modular-monolith.md) | Modular monolith and separately managed local ASR |

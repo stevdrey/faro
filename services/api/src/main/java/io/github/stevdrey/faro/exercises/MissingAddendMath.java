@@ -7,9 +7,9 @@ import java.util.Objects;
 public final class MissingAddendMath {
     private MissingAddendMath() {}
 
-    /** Tests knownAddend + answer = total without 32-bit overflow. */
+    /** Tests knownAddend + answer = total against the operands' single solution. */
     public static boolean isCorrect(ExerciseOperands.MissingAddend operands, int answer) {
         Objects.requireNonNull(operands, "operands");
-        return (long) operands.knownAddend() + answer == operands.total();
+        return answer == operands.solution();
     }
 }
