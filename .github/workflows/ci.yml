@@ -79,6 +79,8 @@ jobs:
         run: npm --prefix apps/web run test:unit
       - name: Install test browser explicitly
         run: npm --prefix apps/web run test:install-browser
+      - name: Test standalone recorder capture lifecycle
+        run: node tools/asr-benchmark/tests/recorder-capture.cjs
       - name: Test browser interactions
         run: npm --prefix apps/web run test:e2e
       - name: Typecheck and build

@@ -203,7 +203,17 @@ The browser check also verified 13 first-pass comparison cards, 12 audio players
 nonverbal/mixed annotations, ambiguous numeric components without summing, empty
 versus failed recognition, inert HTML-like text and revoked playback URLs.
 Final syntax and whitespace checks passed; PR-size preflight passed at
-**24/40 changed files**. Remote CI is tracked separately on the PR.
+**25/40 changed files**. Remote CI is tracked separately on the PR.
+
+The Codex review found recovery could invalidate a live recorder's generation,
+causing its stop callback to skip track release. Both the recovery button and
+handler now reject recovery while a recorder is active. The offline Chromium
+regression `recorder-capture.cjs` failed on the original code, then passed after
+the fix: pending permission and active capture reject recovery, Stop/Cancel/the
+actual 30-second limit release every synthetic track, later recording works,
+and idle recovery opens no microphone. Its checkpoint responses stay in memory;
+it never connects to a running guide or accesses private audio. The web CI job
+runs this regression using its existing pinned Chromium installation.
 
 ## Commands and automated checks
 
@@ -214,6 +224,8 @@ python3 -W error::ResourceWarning -m unittest discover -s tools/asr-benchmark/te
 python3 -W error::ResourceWarning -m unittest discover -s infra/whisper/tests -v
 node --check tools/asr-benchmark/record.js
 node --check tools/asr-benchmark/tests/recorder-browser.cjs
+node --check tools/asr-benchmark/tests/recorder-capture.cjs
+node tools/asr-benchmark/tests/recorder-capture.cjs
 python3 infra/whisper/baseline.py start
 python3 tools/asr-benchmark/benchmark.py --repeats 3
 python3 infra/whisper/baseline.py stop

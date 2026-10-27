@@ -222,6 +222,9 @@ After closing/reloading the page or restarting the guide, reconfirm own-voice
 authorization and select **Recuperar grabaciones**. Restored IDs, format, duration,
 lengths, checksums, reference version and contiguous order are validated. Restoring
 opens no microphone and performs no ASR until comparison is explicitly chosen.
+Recovery is disabled while microphone permission, recording or audio preparation
+is active. The handler also rejects recovery during capture, preserving its
+generation so Stop, Cancel and the 30-second limit can release the microphone.
 Invalid/corrupt/symlink files fail closed without logging their contents. A failed
 checkpoint leaves the pending browser recording available for retry.
 
@@ -344,6 +347,20 @@ node .agents/scripts/pr-size-preflight.mjs
 
 CI runs offline tests on Python 3.11 in the existing ASR tooling job. It does not
 generate audio, download models, run Docker inference or publish measurements.
+
+The web CI job also runs this focused capture regression after installing its
+existing pinned Chromium browser:
+
+```bash
+node tools/asr-benchmark/tests/recorder-capture.cjs
+```
+
+It serves the real guide assets through an in-memory browser route fixture and
+uses Chromium's synthetic microphone. With a saved synthetic checkpoint, it
+checks recovery is blocked during pending permission and active recording,
+including direct handler invocation. Stop, Cancel and the actual 30-second limit
+must release all tracks; subsequent recording and idle recovery must still work.
+No running guide, ASR, physical microphone, private directory or audio file is used.
 
 Optional browser integration check, with the baseline and guide running and
 the repository's existing locked Playwright installation available:

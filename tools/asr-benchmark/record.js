@@ -26,7 +26,7 @@ function render() {
   $("accept").disabled = !pending || busy || !$("confirmed").checked;
   $("measure").disabled = !complete || busy || !$("adult").checked;
   $("adult").disabled = busy || !!recorder;
-  $("restore").disabled = busy || !$("adult").checked || !recovery.enabled || !recovery.clip_count || !samples.length || !settingsLoaded;
+  $("restore").disabled = busy || !!recorder || !$("adult").checked || !recovery.enabled || !recovery.clip_count || !samples.length || !settingsLoaded;
   $("model-choice").disabled = busy;
 }
 function cancelCapture() {
@@ -225,7 +225,7 @@ $("accept").onclick = async () => {
 };
 $("clear").onclick = () => clearAll({ deleteRecovery: true });
 $("restore").onclick = async () => {
-  if (!$("adult").checked || busy) return;
+  if (!$("adult").checked || busy || recorder) return;
   const ownGeneration = ++generation; busy = true; render();
   try {
     const response = await fetch("recovery"); if (!response.ok) throw new Error();
