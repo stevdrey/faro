@@ -13,6 +13,8 @@ All project documentation and GitHub work items are written in English. The user
 | [Provider-independent models](05-provider-independence.md) | ASR ports, configuration, local-only policy, optional future LLM |
 | [LOCAL_ONLY verification](verification/local-only-policy.md) | FARO-040 backend admission, endpoint rules, cloud veto and no-fallback regression coverage |
 | [ASR research](research/asr-alternatives-es.md) | Baseline, candidates, benchmark methodology, license cautions |
+| [Synthetic ASR benchmark](../tools/asr-benchmark/README.md) | FARO-014 reproducible corpus, critical-number scoring, latency and cgroup resources |
+| [ASR benchmark verification](verification/local-asr-benchmark.md) | Synthetic baseline and authorized adult base/small aggregates, denominators, pending #34 and limits |
 | [Local whisper.cpp baseline](../infra/whisper/README.md) | FARO-010 standalone CPU server, pinned artifacts, synthetic Spanish smoke test, licenses and cleanup |
 | [Local whisper.cpp verification](verification/local-whisper-baseline.md) | FARO-010 offline tests and real local inference results |
 | [Licensing and commercial evolution](06-license-and-commercial-path.md) | AGPL-3.0-or-later for Faro code, external dependencies, SaaS proposals |

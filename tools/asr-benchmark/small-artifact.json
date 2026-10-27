@@ -1,0 +1,14 @@
+{
+  "id": "small-multilingual",
+  "file": "ggml-small.bin",
+  "repository": "ggerganov/whisper.cpp",
+  "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+  "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin?download=true",
+  "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+  "size_bytes": 487601967,
+  "license": "MIT",
+  "license_source": "https://huggingface.co/ggerganov/whisper.cpp/blob/5359861c739e955e79d9a303bcbc70fb988958b1/README.md",
+  "metadata_source": "https://huggingface.co/api/models/ggerganov/whisper.cpp/revision/5359861c739e955e79d9a303bcbc70fb988958b1?blobs=true",
+  "original_license_source": "https://github.com/openai/whisper/blob/main/LICENSE",
+  "intended_use": "Explicit local comparison with base on matched synthetic or consenting adult own-voice clips; no child pilot or automatic provider replacement."
+}

@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-10-24T06:31:21.642885+00:00",
+  "dataset": {
+    "id": "faro-synthetic-es-v1",
+    "kind": "synthetic-only",
+    "manifest_sha256": "964b68b9c767551d5ef6d7a95e525f2cd941ef7787827e4ec280ccdf1af4fbad",
+    "audio_sha256": "8c02588bef873d77a0aabed7bcaab52e57b8c4d192e451a7dbcd79ba7a9c9a96",
+    "unique_clips": 37,
+    "audio_seconds": 131.011,
+    "voice": "es-419",
+    "rates": [
+      120,
+      140,
+      170
+    ],
+    "pitch": 50
+  },
+  "environment": {
+    "os": "Linux",
+    "kernel": "7.2.11-200.fc44.x86_64",
+    "machine": "x86_64",
+    "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics",
+    "logical_cpus": 16,
+    "python": "3.14.8",
+    "espeak_ng": "eSpeak NG text-to-speech: 1.52.0",
+    "ffmpeg": "ffmpeg version 8.1.3 Copyright (c) 2000-2026 the FFmpeg developers",
+    "docker": "29.9.2"
+  },
+  "candidates": [
+    {
+      "engine": "whisper.cpp",
+      "status": "measured",
+      "runtime_image": "ghcr.io/ggml-org/whisper.cpp@sha256:80eaf700df7e5c46ec7482f8123c88edaefefda74b36c1191a7c85c116e8e399",
+      "runtime_revision": "231638a0717b7822784297e5980965ffcec05810",
+      "model_id": "base-multilingual",
+      "model_revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+      "model_sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+      "model_size_bytes": 147951465,
+      "language": "es",
+      "threads": 4,
+      "scores": {
+        "speech_clips": 36,
+        "all_critical_numbers_correct": 4,
+        "critical_number_accuracy": 0.1111111111111111,
+        "speech_technical_failures": 0,
+        "wer_clips": 36,
+        "word_edits": 248,
+        "reference_words": 219,
+        "wer": 1.1324200913242009,
+        "silence_clips": 1,
+        "silence_nonempty": 1,
+        "silence_technical_failures": 0
+      },
+      "requests": 111,
+      "repeats": 3,
+      "warmup_requests": 1,
+      "technical_failures_all_passes": 0,
+      "clips_with_repeat_disagreement": 0,
+      "latency_ms": {
+        "p50": 1004.386,
+        "p95": 1406.895,
+        "scope": "all requests, HTTP round-trip; excludes synthesis, warm-up and resource probes"
+      },
+      "resources": {
+        "cpu_seconds": 435.166681,
+        "memory_before_bytes": 261902336,
+        "memory_after_bytes": 332300288,
+        "container_lifetime_peak_bytes": 332304384,
+        "scope": "Linux cgroup v2 container; peak includes startup/warm-up; CPU excludes startup/warm-up"
+      }
+    },
+    {
+      "engine": "moonshine",
+      "status": "not_measured",
+      "reason": "adapter_not_installed"
+    },
+    {
+      "engine": "vosk",
+      "status": "not_measured",
+      "reason": "adapter_not_installed"
+    }
+  ],
+  "limitations": [
+    "Single synthetic formant voice; no child-speech or population inference.",
+    "No measured challenger; no replacement ranking.",
+    "Scoring handles nonnegative integers 0–99 in Spanish and digit tokens only.",
+    "Number agreement is not mathematical meaning, assessment safety or false-child-error attribution.",
+    "FARO-024 retry/clarification dependency and FARO-027 adult annotation remain open."
+  ]
+}

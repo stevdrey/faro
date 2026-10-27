@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "faro-synthetic-es-v1",
+  "license": "CC0-1.0",
+  "voice": "es-419",
+  "pitch": 50,
+  "rates": [120, 140, 170],
+  "samples": [
+    {"id": "add-six", "text": "Tengo doce bloques y agrego seis para llegar a dieciocho.", "critical_numbers": [12, 6, 18]},
+    {"id": "add-seven", "text": "Tengo doce bloques y agrego siete para llegar a diecinueve.", "critical_numbers": [12, 7, 19]},
+    {"id": "six", "text": "Agregué seis bloques.", "critical_numbers": [6]},
+    {"id": "seven", "text": "Agregué siete bloques.", "critical_numbers": [7]},
+    {"id": "descending", "text": "Treinta, veintiocho, veintiséis. Voy quitando dos.", "critical_numbers": [30, 28, 26, 2]},
+    {"id": "ascending", "text": "Diez, doce, catorce. Voy sumando dos.", "critical_numbers": [10, 12, 14, 2]},
+    {"id": "subtract", "text": "Cincuenta y tres menos veintiocho da veinticinco.", "critical_numbers": [53, 28, 25]},
+    {"id": "exchange", "text": "Cambio una decena por diez unidades.", "critical_numbers": [1, 10]},
+    {"id": "correction", "text": "Puse siete, quité uno y quedaron seis.", "critical_numbers": [7, 1, 6]},
+    {"id": "zero", "text": "No agregué bloques. Tengo cero.", "critical_numbers": [0]},
+    {"id": "repeat", "text": "Seis, seis, y después siete.", "critical_numbers": [6, 6, 7]},
+    {"id": "boundary", "text": "Dieciséis más uno da diecisiete.", "critical_numbers": [16, 1, 17]}
+  ],
+  "silence_seconds": 2
+}

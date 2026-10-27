@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es-CR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faro · Prueba con mi voz</title>
+<style>
+body{font:18px system-ui,sans-serif;background:#f3f6f4;color:#163b32;margin:0}main{max-width:760px;margin:auto;padding:28px}h1{font-size:2rem}button{font:inherit;min-height:48px;padding:10px 18px;border:1px solid #24624f;border-radius:8px;background:white;color:#163b32;cursor:pointer;margin:5px}button:disabled{opacity:.45;cursor:default}button.primary{background:#24624f;color:white}label{display:block;margin:18px 0}input{width:22px;height:22px;vertical-align:middle}blockquote{font-size:1.5rem;line-height:1.5;background:white;padding:24px;margin:20px 0;border-left:5px solid #d79a36}audio{display:block;width:100%;margin:16px 0}#status{min-height:30px}progress{width:100%}section{margin:24px 0}pre{font-size:.9rem;white-space:pre-wrap;overflow-wrap:anywhere}small{line-height:1.5;display:block}
+[hidden]{display:none!important}.comparison{background:white;border:1px solid #cedcd6;border-radius:10px;padding:20px;margin:18px 0}.comparison h3{margin-top:0}.comparison dt{font-weight:650;margin-top:12px}.comparison dd{margin:4px 0 12px;white-space:pre-wrap;overflow-wrap:anywhere}.comparison .outcome{font-weight:650;padding:8px 0}
+table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{text-align:left;padding:10px 6px;border-bottom:1px solid #cedcd6}select{font:inherit;padding:10px;max-width:100%}.table-wrap{overflow:auto}
+</style>
+<main>
+<h1>Probá Faro con tu voz</h1>
+<p>Leé cada frase a tu ritmo. Podés escuchar y repetir cada grabación antes de usarla en la prueba.</p>
+<p><small id="privacy-note">Cargando la configuración local. Esto es una prueba de voz adulta; no se usan servicios en la nube.</small></p>
+<p><small id="visibility-note">Mantené esta página visible mientras grabás.</small></p>
+<label><input type="checkbox" id="adult"> Soy una persona adulta y autorizo usar mi propia voz en esta prueba local.</label>
+<section id="recovery-panel" hidden aria-label="Respaldo temporal"><p id="recovery-info" role="status"></p><button id="restore" disabled>Recuperar grabaciones</button></section>
+<section aria-label="Grabación guiada">
+<p id="step">Cargando frases…</p><progress id="progress" aria-label="Frases grabadas" max="1" value="0"></progress>
+<blockquote id="phrase"></blockquote>
+<p id="status" role="status" aria-live="polite"></p>
+<button id="record" class="primary" disabled>Grabar</button>
+<button id="stop" disabled>Detener</button><button id="cancel" disabled>Cancelar grabación</button>
+<audio id="preview" controls hidden></audio>
+<label><input type="checkbox" id="confirmed" disabled> Escuché la grabación y dije exactamente la frase mostrada.</label>
+<button id="accept" disabled>Usar esta grabación y continuar</button>
+</section>
+<button id="measure" class="primary" disabled>Medir con mi voz</button><button id="clear">Borrar todo</button>
+<section id="results" hidden><h2>Resultado de tu prueba</h2><p id="summary"></p>
+<div id="model-summary" class="table-wrap"></div>
+<label id="model-choice-label" hidden>Ver las transcripciones de <select id="model-choice"></select></label>
+<h2>Comparación por frase</h2><p>La referencia es la frase que confirmaste haber dicho. Escuchá tu grabación para contrastarla con la hipótesis de Whisper. Los números se extraen de esa transcripción; estos detalles corresponden a la primera pasada, igual que la exactitud del resumen.</p>
+<p>Las etiquetas como [Música] se muestran por separado. Las variantes como «10 y 6» se marcan como ambiguas y conservan sus componentes; no se suman ni se corrigen automáticamente.</p>
+<div id="phrase-comparisons"></div>
+<details><summary>Ver métricas técnicas</summary><pre id="details"></pre></details><p><small>Este resultado describe estas grabaciones de una sola persona. No representa a otras personas ni a voces infantiles. El control de silencio se genera por separado.</small></p></section>
+<script src="record.js"></script>
+</main>
+</html>
