@@ -20,6 +20,10 @@ public record ExerciseDefinition(
                 && expectedResult != missingAddend.solution()) {
             throw new IllegalArgumentException("expectedResult must match the missing-addend solution");
         }
+        if (operands instanceof ExerciseOperands.Sequence sequence
+                && expectedResult != SequenceMath.solution(sequence)) {
+            throw new IllegalArgumentException("expectedResult must match the sequence solution");
+        }
     }
 
     public ExerciseType type() {

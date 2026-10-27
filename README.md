@@ -116,6 +116,8 @@ Only signed 32-bit arithmetic limits block movements. No answer is calculated or
 graded, and no API, storage or telemetry is added. Shared spoken guidance and
 optional post-completion voice capture are described below.
 See [FARO-006 verification](docs/verification/sequence-number-line.md).
+The separate backend arithmetic check is described in
+[FARO-016 verification](docs/verification/sequence-math.md).
 
 ## Subtraction tens-and-ones demo (FARO-007 / issue #24)
 
