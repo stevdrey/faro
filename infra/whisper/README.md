@@ -6,6 +6,15 @@ to `http://127.0.0.1:8085/inference`. It does not connect to Faro's Java API, ch
 its provider, capture a microphone, or enable a child pilot. FARO-012 owns
 application integration; FARO-040 owns backend `LOCAL_ONLY` enforcement.
 
+FARO-014's separate [own-voice guide](../../tools/asr-benchmark/README.md#test-with-your-own-adult-voice)
+can also use this managed runtime for a consenting adult's own local technical
+test, with audio/hypotheses in memory. Its explicit confirmation is not child
+consent; the application's synthetic-only API/preview remains unchanged. The
+baseline `smoke-test` command below continues to synthesize its fixed sample.
+The guide also supports a separately managed small-model comparison and an
+explicit private 24-hour WAV recovery checkpoint. The guide manages those files;
+both ASR containers still read requests in memory with logs/conversion files disabled.
+
 ## Requirements and commands
 
 - Linux **amd64**, Docker Engine, and Python **3.11+** (standard library only).

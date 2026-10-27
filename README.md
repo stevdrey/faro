@@ -15,7 +15,7 @@ The future MVP 0.1 includes three exercise families (missing addend, sequences, 
 - `apps/web`: **React 19.3.1 + TypeScript 7.0.2 + Vite 8.3.4**, with separate child/adult features in later issues.
 - `services/api`: **Java 27 + Spring Boot 4.1.1 + Gradle 9.8.1**, modular monolith; modules `exercises`, `sessions`, `speech`, `assessment`, `feedback`, and `pilot`.
 - `infra/dev`: local run scripts; `infra/whisper`: standalone Docker CPU ASR baseline, no committed model weights.
-- `tools`: future reproducible ASR benchmarks.
+- `tools`: [synthetic local ASR benchmark](tools/asr-benchmark/README.md), with number accuracy, latency and resource measurements.
 - `docs`: English architecture, design decisions, research protocol, supply-chain policy, and 41-issue backlog.
 
 Speech recognition has an **application-owned port, immutable request/result contracts, and a deterministic fake adapter**, selected through the required `faro.speech.provider` (the fake only via the `dev` profile). An unset or absent provider fails startup explicitly without fallback. FARO-012 adds a **default-disabled synthetic-only preview** connecting browser audio to the independently managed [whisper.cpp CPU baseline](infra/whisper/README.md), with a digest-pinned image and checksum-verified multilingual base model. FARO-040 (`LOCAL_ONLY`, issue #21, merged in #73) enforces backend admission before adapter creation and each transcription. The preview remains synthetic-only; this gate does not authorize a child pilot. Optional explanation interpretation will use a separate port. Moonshine and Vosk are benchmark candidates, not prerequisites. No LLM is in the MVP assessment path. See [provider configuration and contract semantics](docs/05-provider-independence.md).
@@ -266,6 +266,27 @@ No browser storage, server persistence or retry history is introduced;
 durable session storage/deletion belongs to FARO-025. The synthetic preview
 remains disabled by default and this change does not authorize child-audio use.
 See [FARO-013 verification](docs/verification/safe-speech-metadata.md).
+
+## Synthetic ASR benchmark (FARO-014 / issue #39)
+
+The [standalone benchmark](tools/asr-benchmark/README.md) generates 36 Spanish
+synthetic clips and a silence control, then measures the pinned local Whisper
+baseline without retaining audio or hypotheses. It reports all-critical-number
+accuracy and WER on unique first-pass speech clips, repeated-request p50/p95
+latency, CPU seconds, container memory and exact artifact provenance. Optional
+Moonshine/Vosk candidates are explicitly unmeasured until adapters are installed.
+See [synthetic results, authorized adult base/small aggregates and verification](docs/verification/local-asr-benchmark.md).
+This technical corpus supports no conclusions about children's speech or engine
+replacement; retry/clarification, adult audit and broader A/B work remain separate.
+An optional [guided own-voice test](tools/asr-benchmark/README.md#test-with-your-own-adult-voice)
+lets a consenting adult record the 12 phrases in a loopback browser page and
+measure them locally in memory. It does not enable the application's synthetic
+preview for human audio or publish recordings/results.
+The guide can also [compare base and small on identical WAVs](tools/asr-benchmark/README.md#matched-base-versus-small-comparison).
+An explicitly enabled [24-hour private WAV recovery mode](tools/asr-benchmark/README.md#optional-temporary-wav-recovery)
+retains reviewed adult recordings in an ignored directory across page/process
+interruptions. The ordinary mode remains memory-only; transcripts stay in memory
+in both modes, and the page provides explicit checkpoint recovery/deletion.
 
 ## Supply-chain safety
 

@@ -29,6 +29,12 @@ Review manifest updates and rerun real local inference; the upstream image's OS,
 libraries and bundled utilities keep their separate licenses. FARO-041 remains
 responsible for the general artifact inventory.
 
+The benchmark's [small-model manifest](../tools/asr-benchmark/small-artifact.json)
+likewise pins its converted-model revision, HTTPS download, byte length, SHA-256,
+LFS metadata source and independent MIT weight license. Explicit setup alone can
+download it; base and small start with the same cached digest-pinned CPU image,
+separate local containers/ports and no runtime downloads or provider fallback.
+
 ## Java/Gradle
 
 Use Java 27 and Gradle 9.8.1; 9.8.1 addresses important security issues from the initial 9.8 release. Spring Boot 4.1.1 is the current stable baseline, but its official documented Java compatibility currently extends through Java 26: **Java 27 is a test-required compatibility risk until Spring confirms support**.

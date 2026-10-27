@@ -2,6 +2,17 @@
 
 **Status:** candidate comparison based on the 16 October 2026 design source. **No child-speech benchmark has been run**; do not generalize vendor WER values to Costa Rican children.
 
+FARO-014 now supplies a [reproducible synthetic benchmark and opt-in adult guide](../../tools/asr-benchmark/README.md)
+and [measured verification](../verification/local-asr-benchmark.md). A separate
+matched comparison on 12 authorized adult clips found critical-number agreement
+of 8/12 for Whisper base and 12/12 for small, at higher latency/memory for small.
+These are strict number scores, not mathematical-meaning or assessment accuracy;
+qualitative review still found meaning losses. Only reviewed aggregates are
+published; recordings and personal transcripts are excluded. Moonshine/Vosk
+remain unmeasured until their reviewed adapters/artifacts are installed.
+Dependency [#34](https://github.com/stevdrey/faro/issues/34) remains open, and
+this evidence does not authorize a pilot or a provider replacement.
+
 | Candidate | Reference scale | Role | License caution |
 |---|---|---|---|
 | whisper.cpp multilingual **base** | ~74M parameters / ~142 MiB weight file | Initial reproducible baseline | Runtime MIT; verify model-weights terms independently |
@@ -13,7 +24,7 @@
 
 **Do not compare WER across unrelated datasets**. Vendor-level WER numbers in the source are not a result on the Faro pilot. CPU memory, on-disk size, model parameters, and runtime speed are different measurements.
 
-## Repeatable benchmark protocol (future FARO-014/038)
+## Repeatable benchmark protocol (FARO-014 technical baseline; future FARO-038 comparison)
 
 - Obtain explicit adult consent; target 30–60 short voluntary speech explanations, never force recording. An adult-only synthetic/technical corpus is acceptable while consent is absent.
 - Normalize inputs consistently. Compare each engine with the **same authorized clips**, human reference transcripts, and marked critical numbers/operators.
