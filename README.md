@@ -79,7 +79,9 @@ The activity works with the web server alone; it does not require the API.
 Refreshing or closing the page also discards the attempt.
 
 The shared local completion controller and FARO-009 spoken guidance are described
-below; mathematical evaluation belongs to later engine/assessment issues. This demonstration
+below. The backend's pure missing-addend check is described in the
+[FARO-015 verification](docs/verification/missing-addend-math.md); evaluating attempts
+belongs to later engine/assessment issues. This demonstration
 does not authorize an unsupervised or public pilot.
 
 Web verification uses Node's built-in test runner for the pure reducer and pinned

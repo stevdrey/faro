@@ -16,6 +16,10 @@ public record ExerciseDefinition(
         Objects.requireNonNull(operands, "operands");
         Objects.requireNonNull(visualModel, "visualModel");
         Objects.requireNonNull(difficulty, "difficulty");
+        if (operands instanceof ExerciseOperands.MissingAddend missingAddend
+                && expectedResult != missingAddend.solution()) {
+            throw new IllegalArgumentException("expectedResult must match the missing-addend solution");
+        }
     }
 
     public ExerciseType type() {

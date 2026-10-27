@@ -8,6 +8,7 @@ import io.github.stevdrey.faro.exercises.Difficulty;
 import io.github.stevdrey.faro.exercises.ExerciseDefinition;
 import io.github.stevdrey.faro.exercises.ExerciseOperands;
 import io.github.stevdrey.faro.exercises.ExerciseType;
+import io.github.stevdrey.faro.exercises.MissingAddendMath;
 import io.github.stevdrey.faro.exercises.VisualModel;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +70,10 @@ class ExercisePayloadTests {
         assertThat(payload.schemaVersion()).isEqualTo(1);
         if (payload instanceof ExercisePayload.MissingAddend missingAddend) {
             assertThat(missingAddend.presentation().name()).isEqualTo(json.get("presentation").asString());
+            var domain = new ExerciseOperands.MissingAddend(
+                    missingAddend.operands().total(), missingAddend.operands().knownAddend());
+            assertThat(MissingAddendMath.isCorrect(domain, expectedResult)).isTrue();
+            assertThat(MissingAddendMath.isCorrect(domain, expectedResult + 1)).isFalse();
         }
         assertThat(mapper.readTree(exerciseJson.write(payload))).isEqualTo(json);
     }
@@ -219,13 +224,16 @@ class ExercisePayloadTests {
     }
 
     @Test
-    void constructorsValidateStructureWithoutSolvingTheExercise() {
-        ExerciseOperands operands = new ExerciseOperands.MissingAddend(0, -1);
+    void constructorsValidateStructure() {
+        ExerciseOperands operands = new ExerciseOperands.MissingAddend(0, 0);
         ExerciseDefinition definition = new ExerciseDefinition(
-                "synthetic", operands, VisualModel.BLOCKS, Difficulty.HARD, 99);
+                "synthetic", operands, VisualModel.BLOCKS, Difficulty.HARD, 0);
 
         assertThat(ExercisePayload.from(definition).operands())
-                .isEqualTo(new ExercisePayload.MissingAddendOperands(0, -1));
+                .isEqualTo(new ExercisePayload.MissingAddendOperands(0, 0));
+        assertThatThrownBy(() -> new ExerciseDefinition("id", new ExerciseOperands.MissingAddend(18, 12),
+                VisualModel.BLOCKS, Difficulty.EASY, 7))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ExerciseDefinition(" ", operands, VisualModel.BLOCKS, Difficulty.EASY, 0))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ExerciseDefinition("id", null, VisualModel.BLOCKS, Difficulty.EASY, 0))

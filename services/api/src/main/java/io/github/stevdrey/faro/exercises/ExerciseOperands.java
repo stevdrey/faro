@@ -6,7 +6,20 @@ import java.util.Objects;
 
 /** Known inputs only. A sequence contains visible terms, never its missing next term. */
 public sealed interface ExerciseOperands {
-    record MissingAddend(int total, int knownAddend) implements ExerciseOperands {}
+    /** Non-negative counts with knownAddend <= total, matching the web client's rule. */
+    record MissingAddend(int total, int knownAddend) implements ExerciseOperands {
+        public MissingAddend {
+            if (total < 0 || knownAddend < 0 || knownAddend > total) {
+                throw new IllegalArgumentException(
+                        "A missing addend needs non-negative operands with knownAddend <= total");
+            }
+        }
+
+        /** The single answer that completes knownAddend + answer = total; cannot overflow. */
+        public int solution() {
+            return total - knownAddend;
+        }
+    }
 
     record Sequence(List<Integer> terms) implements ExerciseOperands {
         public static final int MAX_TERMS = 20;

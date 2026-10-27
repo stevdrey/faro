@@ -38,7 +38,7 @@ The mathematical definition is identical for these layouts. Presentation is a tr
 
 ## Backend boundary and client types
 
-`ExerciseDefinition` is a backend-only immutable domain record with an `expectedResult` integer. Its family is derived from its typed operands, so family/operand mismatches cannot be constructed. The domain imports neither Jackson nor Spring nor a model-provider SDK.
+`ExerciseDefinition` is a backend-only immutable domain record with an `expectedResult` integer. Its family is derived from its typed operands, so family/operand mismatches cannot be constructed. Since FARO-015, domain missing-addend operands must be non-negative with `knownAddend <= total`, and `expectedResult` must equal their solution; wire operands keep the full signed range. The domain imports neither Jackson nor Spring nor a model-provider SDK.
 
 `ExercisePayload.from(definition)` explicitly projects a definition to a sealed public DTO variant, attaches `schemaVersion: 1`, and omits the solution. Future controllers must return this DTO, never serialize `ExerciseDefinition` directly. Jackson adds the top-level `type` discriminator; no implementation class names or nested operand discriminators appear in JSON. Wire operands are dedicated `ExercisePayload.*Operands` records, so renaming a domain record component does not silently change v1 JSON; sequence operands reuse the domain's term-count and null rules.
 
