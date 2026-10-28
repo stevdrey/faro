@@ -81,6 +81,17 @@ class SpanishNumberNormalizerTests {
     }
 
     @Test
+    void rejectsEntireOutOfRangeCompoundsWithoutLosingSeparateMentions() {
+        for (String text : List.of("mil ciento treinta y dos", "doscientos mil treinta y seis",
+                "mil treinta y dos", "mil ciento treinta y", "mil ciento treinta y diez")) {
+            assertThat(SpanishNumberNormalizer.normalize(text).numbers()).as(text).isEmpty();
+        }
+        var result = SpanishNumberNormalizer.normalize("mil ciento treinta y dos, seis y siete");
+        assertThat(result.numbers()).extracting(SpanishNumberNormalizer.NumberMention::value)
+                .containsExactly(6, 7);
+    }
+
+    @Test
     void rejectsUnsupportedAndPartialExpressions() {
         for (String text : List.of("", "sin números", "seisabc abc6 6abc _6", "121", "999999999999999999999",
                 "-6", "+6", "6,5", "3.14", "treinta-y-tres", "ciento veintiuno", "ciento veinte y seis", "ciento treinta y tres", "doscientos seis",

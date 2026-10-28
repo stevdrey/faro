@@ -90,8 +90,8 @@ public final class SpanishNumberNormalizer {
         if (first.equals("ciento") || LARGE.contains(first)) {
             while (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
                     && numericWord(tokens.get(end).word())) end++;
-            // "ciento treinta y tres" is an unsupported number, not 100, 30 and 3.
-            if (end == start + 2 && isTens(tokens.get(end - 1).word())
+            // Consume the tens suffix even after multiple out-of-range numeric words.
+            if (end > start + 1 && isTens(tokens.get(end - 1).word())
                     && nextIs(tokens, end - 1, "y", text)) {
                 end++;
                 if (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
