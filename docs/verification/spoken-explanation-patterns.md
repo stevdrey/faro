@@ -35,12 +35,16 @@ numbers such as `treinta y dos` remain a single number.
 For example, `tenía doce bloques y luego sumé seis; me quedaron 18` produces
 three literal observations. Unsupported clauses are ignored independently:
 `porque sí; puse seis` produces only the `ADDED` observation. Extra words within
-a clause, implied quantities, other subjects, conditional phrasing, ambiguous
+a clause, implied quantities, other subjects, ambiguous
 lists and unsupported number forms do not produce evidence for that clause.
 The finite grammar cannot understand all Spanish phrasing or all ambiguity.
 
-Any question mark or any negation or uncertainty cue detected anywhere by
-FARO-018 yields no evidence for the entire input; the cue vocabulary is finite
+Any question mark, quote delimiter (`'`, `"`, `«`, `»`, `‹`, `›`, `‘`, `’`,
+`‚`, `‛`, `“`, `”`, `„`, `‟`), unaccented conditional token `si` (case
+insensitive), or negation or uncertainty cue detected anywhere by FARO-018 yields
+no evidence for the entire input, even when the condition or quote is incomplete.
+Affirmative `sí`, including decomposed accents, is not the conditional token.
+The cue vocabulary is finite
 and is not a complete detector of negation or uncertainty. Blank input and input
 over 16,000 UTF-16 code units also yield no evidence, without truncation; null
 is rejected. This is a conservative extraction policy, not a determination of

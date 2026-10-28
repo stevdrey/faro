@@ -64,6 +64,30 @@ class SpanishExplanationInterpreterTests {
     }
 
     @Test
+    void rejectsConditionalSiWithoutConfusingAffirmativeSi() {
+        for (String text : List.of("si tenía seis y puse dos", "SI tenía seis, puse dos y quité uno",
+                "tenía seis; Si puse dos", "tenía seis y si puse dos")) {
+            assertThat(interpreter.interpret(text)).as(text).isEmpty();
+        }
+        for (String text : List.of("porque sí; puse seis", "porque SÍ; puse seis", "porque si\u0301; puse seis")) {
+            assertThat(interpreter.interpret(text)).as(text).extracting(ExplanationInterpreter.Evidence::action)
+                    .containsExactly(ADDED);
+        }
+        assertThat(interpreter.interpret("tenía seis y puse dos"))
+                .extracting(ExplanationInterpreter.Evidence::action).containsExactly(HAD, ADDED);
+    }
+
+    @Test
+    void rejectsQuotesAnywhereIncludingUnmatchedOrSpacedDelimiters() {
+        for (String text : List.of("dijo: « tenía seis »", "dijo: «tenía seis»", "dijo: \" tenía seis \"",
+                "dijo: ' tenía seis '", "dijo: ‘ tenía seis ’", "dijo: “ tenía seis ”",
+                "dijo: ‹ tenía seis ›", "dijo: « tenía seis; puse dos », quité uno",
+                "tenía seis; dijo: «puse dos", "puse dos »")) {
+            assertThat(interpreter.interpret(text)).as(text).isEmpty();
+        }
+    }
+
+    @Test
     void ignoresAmbiguousOrUnsupportedClauses() {
         for (String text : List.of("porque", "tenía", "tenía 121", "tenía dos mil", "tenía seis o siete",
                 "si tenía seis", "ella tenía seis", "¿tenía seis?", "¿ tenía seis ?", "tenía seis más dos",

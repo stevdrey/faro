@@ -15,6 +15,7 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
     private static final int MAX_LENGTH = 16_000;
     private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{M}\\p{N}_]+");
     private static final Pattern MARKS = Pattern.compile("\\p{M}+");
+    private static final String QUOTES = "\"'«»‹›‘’‚‛“”„‟";
     private static final Set<String> NOUNS = Set.of("bloque", "bloques", "unidad", "unidades", "ficha", "fichas",
             "objeto", "objetos", "bola", "bolas", "manzana", "manzanas", "punto", "puntos");
     private static final Set<String> SEQUENCE = Set.of("luego", "despues", "entonces");
@@ -29,13 +30,19 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
     public List<Evidence> interpret(String transcript) {
         Objects.requireNonNull(transcript, "transcript");
         if (transcript.isBlank() || transcript.length() > MAX_LENGTH
-                || transcript.indexOf('¿') >= 0 || transcript.indexOf('?') >= 0) return List.of();
+                || transcript.indexOf('¿') >= 0 || transcript.indexOf('?') >= 0
+                || transcript.codePoints().anyMatch(cp -> QUOTES.indexOf(cp) >= 0)) return List.of();
+        var tokens = new ArrayList<Token>();
+        var matcher = TOKEN.matcher(transcript);
+        while (matcher.find()) {
+            String word = matcher.group();
+            // Preserve accents here: conditional "si" differs from affirmative "sí".
+            if (word.equalsIgnoreCase("si")) return List.of();
+            tokens.add(new Token(fold(word), matcher.start(), matcher.end()));
+        }
         var normalized = SpanishNumberNormalizer.normalize(transcript);
         if (!normalized.cues().isEmpty()) return List.of();
 
-        var tokens = new ArrayList<Token>();
-        var matcher = TOKEN.matcher(transcript);
-        while (matcher.find()) tokens.add(new Token(fold(matcher.group()), matcher.start(), matcher.end()));
         var evidence = new ArrayList<Evidence>();
         int start = 0;
         for (int i = 0; i <= tokens.size(); i++) {
@@ -74,7 +81,7 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
         while (after < text.length() && space(text.charAt(after))) after++;
         if ((before >= 0 && "¿?+-−‐‑–—/".indexOf(text.charAt(before)) >= 0)
                 || (after < text.length() && "¿?+-−‐‑–—/".indexOf(text.charAt(after)) >= 0)) return;
-        // Do not accept a fragment inside quotes or a malformed mixed decimal like "seis.5".
+        // Reject stray punctuation and malformed mixed decimals like "seis.5".
         if ((first > 0 && !space(text.charAt(first - 1)) && ".,;:!¡".indexOf(text.charAt(first - 1)) < 0)
                 || (last < text.length() && !space(text.charAt(last)) && ".,;:!¡".indexOf(text.charAt(last)) < 0)
                 || (last + 1 < text.length() && ".,".indexOf(text.charAt(last)) >= 0
