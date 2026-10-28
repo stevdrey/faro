@@ -24,6 +24,18 @@ an immediately following scale word or tens conjunction is treated as part of
 the potentially out-of-range compound.
 An ASCII digit immediately following a period or comma is conservatively rejected,
 including decimals without an integer part; use whitespace to separate list items.
+Times and fractions (`6:30`, `1/2`), digits joined by any hyphen, dash or sign
+(`5-6`, `5–6`, `5—6`), space-grouped thousands (`1 000`), spoken decimals
+(`seis coma cinco`, `tres punto dos`) and a spoken sign (`menos seis`) are
+rejected as a whole; a subtraction such as `cinco menos dos` keeps both terms.
+Scale and multiplier words (`mil`, `miles`, `millón`, `millardo`, `billón`,
+`cientos`, `centenar`, `docena` and plurals) make the enclosing compound out of
+range. A tens word followed by `y` and a unit is one compound; when `y` is
+followed by another tens word or a non-number word (`veinte y treinta`,
+`treinta y tú`), the tens word stays a separate mention, while a dangling `y`
+leaves the compound incomplete. `diez y seis` follows the same rule as
+`veinte y seis`. Non-breaking and other Unicode space separators count as
+whitespace.
 
 Cue vocabulary (case and accent insensitive): `no`, `nunca`, `jamás`, `tampoco`;
 `quizá`, `quizás`, `tal vez`, `posiblemente`, `probablemente`. These are literal

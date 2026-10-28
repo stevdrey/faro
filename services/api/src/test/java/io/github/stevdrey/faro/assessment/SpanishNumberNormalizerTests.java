@@ -122,4 +122,35 @@ class SpanishNumberNormalizerTests {
                 .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(6, 5, 4);
         assertThatNullPointerException().isThrownBy(() -> SpanishNumberNormalizer.normalize(null));
     }
+
+    @Test
+    void treatsUnicodeSpaceSeparatorsAsWhitespace() {
+        for (String text : List.of("treinta y dos", "ciento veinte", "dos mil")) {
+            var expected = text.startsWith("dos") ? List.<Integer>of() : List.of(text.startsWith("treinta") ? 32 : 120);
+            assertThat(SpanishNumberNormalizer.normalize(text).numbers()).as(text)
+                    .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactlyElementsOf(expected);
+        }
+    }
+
+    @Test
+    void keepsTensWhenConjunctionStartsAnotherClauseOrList() {
+        assertThat(SpanishNumberNormalizer.normalize("tengo treinta y tú cuarenta").numbers())
+                .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(30, 40);
+        assertThat(SpanishNumberNormalizer.normalize("entre veinte y treinta").numbers())
+                .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(20, 30);
+        assertThat(SpanishNumberNormalizer.normalize("ciento veinte y tú").numbers())
+                .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(120);
+        assertThat(SpanishNumberNormalizer.normalize("cinco menos dos").numbers())
+                .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(5, 2);
+    }
+
+    @Test
+    void rejectsSpokenNotationScalesAndGroupedDigits() {
+        for (String text : List.of("seis coma cinco", "tres punto dos", "menos seis", "dos billones", "seis cientos",
+                "dos docenas", "ciento diez y seis", "diez y seis", "5–6", "5—6", "6:30", "1/2", "1 000", "100 000")) {
+            assertThat(SpanishNumberNormalizer.normalize(text).numbers()).as(text).isEmpty();
+        }
+        assertThat(SpanishNumberNormalizer.normalize("a las seis en punto, respuesta: 6").numbers())
+                .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(6, 6);
+    }
 }

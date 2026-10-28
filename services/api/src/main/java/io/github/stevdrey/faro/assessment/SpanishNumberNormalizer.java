@@ -31,7 +31,11 @@ public final class SpanishNumberNormalizer {
     private static final Set<String> LARGE = Set.of("doscientos", "doscientas", "trescientos", "trescientas",
             "cuatrocientos", "cuatrocientas", "quinientos", "quinientas", "seiscientos", "seiscientas",
             "setecientos", "setecientas", "ochocientos", "ochocientas", "novecientos", "novecientas",
-            "mil", "millon", "millones");
+            "mil", "miles", "millon", "millones", "millardo", "millardos", "billon", "billones",
+            "cientos", "centenar", "centenares", "docena", "docenas");
+    private static final Set<String> DECIMAL_SEPARATORS = Set.of("coma", "punto");
+    private static final String SIGNS = "+-−‐‑–—";
+    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Set<String> NEGATION = Set.of("no", "nunca", "jamas", "tampoco");
     private static final Set<String> UNCERTAINTY = Set.of("quiza", "quizas", "posiblemente", "probablemente");
 
@@ -76,7 +80,25 @@ public final class SpanishNumberNormalizer {
             var token = tokens.get(i);
             if (!numericWord(token.word())) { i++; continue; }
             int end = numericExpressionEnd(tokens, i, transcript);
-            var mention = parse(tokens, i, end, transcript);
+            boolean rejected = spokenSign(tokens, i, transcript);
+            // Spoken decimals and digit groups ("seis coma cinco", "1 000") are one unsupported number.
+            while (end < tokens.size()) {
+                var previous = tokens.get(end - 1);
+                var next = tokens.get(end);
+                if (ASCII_DIGITS.matcher(previous.word()).matches() && next.word().length() == 3
+                        && ASCII_DIGITS.matcher(next.word()).matches()
+                        && separatedByWhitespace(previous, next, transcript)) {
+                    end++;
+                } else if (DECIMAL_SEPARATORS.contains(next.word()) && separatedByWhitespace(previous, next, transcript)
+                        && end + 1 < tokens.size() && numericWord(tokens.get(end + 1).word())
+                        && separatedByWhitespace(next, tokens.get(end + 1), transcript)) {
+                    end = numericExpressionEnd(tokens, end + 1, transcript);
+                } else {
+                    break;
+                }
+                rejected = true;
+            }
+            var mention = rejected ? null : parse(tokens, i, end, transcript);
             if (mention != null) numbers.add(mention);
             i = end;
         }
@@ -93,7 +115,7 @@ public final class SpanishNumberNormalizer {
                 Integer tail = SMALL.get(tokens.get(end).word());
                 if (tail != null && tail >= 1 && tail <= 20) {
                     boolean followedByScale = nextIsLarge(tokens, end, text);
-                    boolean followedByConjunction = isTens(tokens.get(end).word())
+                    boolean followedByConjunction = isConjunctionTens(tokens.get(end).word())
                             && nextIs(tokens, end, "y", text);
                     if (!followedByScale && !followedByConjunction) return end + 1;
                 }
@@ -106,18 +128,9 @@ public final class SpanishNumberNormalizer {
                 end++;
             }
             // Consume the tens suffix even after multiple out-of-range numeric words.
-            if (end > start + 1 && isTens(tokens.get(end - 1).word())
-                    && nextIs(tokens, end - 1, "y", text)) {
-                end++;
-                if (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
-                        && numericWord(tokens.get(end).word())) end++;
-            }
+            if (end > start + 1) end = tensConjunctionEnd(tokens, end - 1, text);
         } else {
-            if (isTens(first) && nextIs(tokens, start, "y", text)) {
-                end++;
-                if (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
-                        && numericWord(tokens.get(end).word())) end++;
-            }
+            end = tensConjunctionEnd(tokens, start, text);
             if (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
                     && LARGE.contains(tokens.get(end).word())) {
                 end++;
@@ -128,12 +141,34 @@ public final class SpanishNumberNormalizer {
         return end;
     }
 
+    /*
+     * A tens word plus "y" is a compound only when a number follows. Another tens word ("veinte y treinta")
+     * and a non-number word ("treinta y tú") end the mention; a dangling "y" keeps it incomplete.
+     */
+    private static int tensConjunctionEnd(List<Token> tokens, int index, String text) {
+        if (!isConjunctionTens(tokens.get(index).word()) || !nextIs(tokens, index, "y", text)) return index + 1;
+        int after = index + 2;
+        if (after >= tokens.size() || !separatedByWhitespace(tokens.get(index + 1), tokens.get(after), text)) {
+            return after;
+        }
+        String word = tokens.get(after).word();
+        return numericWord(word) && !isTens(word) ? after + 1 : index + 1;
+    }
+
+    /* "menos seis" is a negative number; "cinco menos dos" is a subtraction whose terms stay separate. */
+    private static boolean spokenSign(List<Token> tokens, int index, String text) {
+        if (index == 0 || !tokens.get(index - 1).word().equals("menos")
+                || !separatedByWhitespace(tokens.get(index - 1), tokens.get(index), text)) return false;
+        return index < 2 || !numericWord(tokens.get(index - 2).word())
+                || !separatedByWhitespace(tokens.get(index - 2), tokens.get(index - 1), text);
+    }
+
     private static NumberMention parse(List<Token> tokens, int start, int end, String text) {
         var first = tokens.get(start);
         var last = tokens.get(end - 1);
         // A hyphenated form is not part of the accepted grammar: don't expose its pieces.
-        if ((first.start() > 0 && "+-−".indexOf(text.charAt(first.start() - 1)) >= 0)
-                || (last.end() + 1 < text.length() && "+-−".indexOf(text.charAt(last.end())) >= 0
+        if ((first.start() > 0 && SIGNS.indexOf(text.charAt(first.start() - 1)) >= 0)
+                || (last.end() + 1 < text.length() && SIGNS.indexOf(text.charAt(last.end())) >= 0
                 && Character.isLetterOrDigit(text.codePointAt(last.end() + 1)))) return null;
         int count = end - start;
         Integer value = null;
@@ -156,11 +191,12 @@ public final class SpanishNumberNormalizer {
         return value == null ? null : new NumberMention(value, first.start(), last.end());
     }
 
+    /* Signs are rejected by the caller; this covers decimals, times ("6:30") and fractions ("1/2"). */
     private static boolean touchesNumericNotation(Token token, String text) {
         int start = token.start(), end = token.end();
-        if (start > 0 && "+-−".indexOf(text.charAt(start - 1)) >= 0) return true;
         return (start > 0 && ".,".indexOf(text.charAt(start - 1)) >= 0)
-                || (end + 1 < text.length() && ".,".indexOf(text.charAt(end)) >= 0
+                || (start > 1 && ":/".indexOf(text.charAt(start - 1)) >= 0 && Character.isDigit(text.charAt(start - 2)))
+                || (end + 1 < text.length() && ".,:/".indexOf(text.charAt(end)) >= 0
                 && Character.isDigit(text.charAt(end + 1)));
     }
 
@@ -174,6 +210,11 @@ public final class SpanishNumberNormalizer {
         return value != null && value >= 20 && value <= 90 && value % 10 == 0;
     }
 
+    /* "diez y seis" is a variant spelling of a compound, like "veinte y seis". */
+    private static boolean isConjunctionTens(String word) {
+        return isTens(word) || word.equals("diez");
+    }
+
     private static boolean nextIsLarge(List<Token> tokens, int index, String text) {
         return index + 1 < tokens.size() && LARGE.contains(tokens.get(index + 1).word())
                 && separatedByWhitespace(tokens.get(index), tokens.get(index + 1), text);
@@ -185,12 +226,12 @@ public final class SpanishNumberNormalizer {
     }
 
     private static boolean separatedByWhitespace(Token a, Token b, String text) {
-        return a.end() < b.start() && text.substring(a.end(), b.start()).codePoints().allMatch(Character::isWhitespace);
+        return a.end() < b.start() && text.substring(a.end(), b.start()).codePoints()
+                .allMatch(cp -> Character.isWhitespace(cp) || Character.isSpaceChar(cp));
     }
 
     private static String fold(String text) {
-        return Normalizer.normalize(text.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "");
+        return MARKS.matcher(Normalizer.normalize(text.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)).replaceAll("");
     }
 
     private record Token(String word, int start, int end) {}
