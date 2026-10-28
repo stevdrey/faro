@@ -29,22 +29,26 @@ The verb or `con` must be followed by a number recognized by
 literal input. Only whitespace may separate the words in a clause. Clauses may
 be separated by `.`, `,`, `;`, `:`, `!`, `¡`, or by `y` immediately followed
 by another recognized clause, optionally with `luego`, `después` or `entonces`.
-Those sequence words may also introduce a clause after punctuation. Compound
+Those sequence words may also introduce a clause after punctuation, and a clause
+made only of `y` and/or a sequence word is accepted without evidence. Compound
 numbers such as `treinta y dos` remain a single number.
 
 For example, `tenía doce bloques y luego sumé seis; me quedaron 18` produces
-three literal observations. Unsupported clauses are ignored independently:
-`porque sí; puse seis` produces only the `ADDED` observation. Extra words within
-a clause, implied quantities, other subjects, ambiguous
-lists and unsupported number forms do not produce evidence for that clause.
-The finite grammar cannot understand all Spanish phrasing or all ambiguity.
+three literal observations. Any clause outside this grammar yields no evidence
+for the entire input: extra words, implied quantities, other subjects or
+reported speech (`Ana dijo: tenía seis`, `ella, tenía seis`), lists and
+self-corrections (`tenía seis, siete`, `quité dos, digo, tres`), hedges
+(`me quedaron seis, más o menos`), fillers (`porque sí; puse seis`) and
+unsupported number forms (`tenía 6 . 5`, `tenía seis.5`). The finite grammar
+cannot understand all Spanish phrasing or all ambiguity.
 
-Any question mark, quote delimiter (`'`, `"`, `«`, `»`, `‹`, `›`, `‘`, `’`,
-`‚`, `‛`, `“`, `”`, `„`, `‟`), unaccented conditional token `si` (case
-insensitive), or negation or uncertainty cue detected anywhere by FARO-018 yields
-no evidence for the entire input, even when the condition or quote is incomplete.
-Affirmative `sí`, including decomposed accents, is not the conditional token.
-The cue vocabulary is finite
+Outside words, only whitespace (including Unicode space separators) and the
+separators above may appear. Any other character anywhere, such as a question
+mark, any quote delimiter (`"`, `«`, `＂`, `″`, `` ` ``, `「`), a sign, a slash or
+an emoji, yields no evidence for the entire input, even when a quote is
+unmatched. So does a negation or uncertainty cue detected anywhere by FARO-018.
+Conditional `si` and affirmative `sí` cannot belong to a recognized clause, so
+either one voids the input. The cue vocabulary is finite
 and is not a complete detector of negation or uncertainty. Blank input and input
 over 16,000 UTF-16 code units also yield no evidence, without truncation; null
 is rejected. This is a conservative extraction policy, not a determination of
@@ -65,5 +69,6 @@ gradle -p services/api --no-daemon test
 
 The synthetic tests cover at least 12 formulations, all four actions, ordered
 and repeated claims, original offsets, case and decomposed accents, immutable
-results, conservative rejection and input limits. They do not validate child
+and validated results, whole-input rejection of unsupported clauses and
+characters, and input limits. They do not validate child
 speech, ASR accuracy or readiness for a pilot.

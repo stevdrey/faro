@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.stevdrey.faro.assessment;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
+import io.github.stevdrey.faro.assessment.SpanishNumberNormalizer.NumberMention;
+import io.github.stevdrey.faro.assessment.SpanishTokens.Token;
 
-/** Bounded, literal extraction from Spanish ASR hypotheses. */
+/** Bounded, literal extraction from Spanish ASR hypotheses; any unsupported part voids the whole input. */
 public final class SpanishExplanationInterpreter implements ExplanationInterpreter {
     private static final int MAX_LENGTH = 16_000;
-    private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{M}\\p{N}_]+");
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
-    private static final String QUOTES = "\"'«»‹›‘’‚‛“”„‟";
+    // The only non-space characters allowed between words; quotes, question marks, signs and symbols void the input.
+    private static final String SEPARATORS = ".,;:!¡";
     private static final Set<String> NOUNS = Set.of("bloque", "bloques", "unidad", "unidades", "ficha", "fichas",
             "objeto", "objetos", "bola", "bolas", "manzana", "manzanas", "punto", "puntos");
     private static final Set<String> SEQUENCE = Set.of("luego", "despues", "entonces");
@@ -29,40 +28,49 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
     @Override
     public List<Evidence> interpret(String transcript) {
         Objects.requireNonNull(transcript, "transcript");
-        if (transcript.isBlank() || transcript.length() > MAX_LENGTH
-                || transcript.indexOf('¿') >= 0 || transcript.indexOf('?') >= 0
-                || transcript.codePoints().anyMatch(cp -> QUOTES.indexOf(cp) >= 0)) return List.of();
-        var tokens = new ArrayList<Token>();
-        var matcher = TOKEN.matcher(transcript);
-        while (matcher.find()) {
-            String word = matcher.group();
-            // Preserve accents here: conditional "si" differs from affirmative "sí".
-            if (word.equalsIgnoreCase("si")) return List.of();
-            tokens.add(new Token(fold(word), matcher.start(), matcher.end()));
-        }
-        var normalized = SpanishNumberNormalizer.normalize(transcript);
+        if (transcript.isBlank() || transcript.length() > MAX_LENGTH) return List.of();
+        var tokens = SpanishTokens.tokenize(transcript);
+        if (!onlySpacesAndSeparators(transcript, tokens)) return List.of();
+        var normalized = SpanishNumberNormalizer.normalize(transcript, tokens);
         if (!normalized.cues().isEmpty()) return List.of();
+        var numbers = new HashMap<Integer, NumberMention>();
+        for (var mention : normalized.numbers()) numbers.put(mention.start(), mention);
 
         var evidence = new ArrayList<Evidence>();
         int start = 0;
-        for (int i = 0; i <= tokens.size(); i++) {
-            if (i == tokens.size() || (i > start && isBoundary(transcript, tokens, i))) {
-                parseClause(transcript, tokens, start, i, normalized.numbers(), evidence);
+        for (int i = 1; i <= tokens.size(); i++) {
+            if (i == tokens.size() || isBoundary(transcript, tokens, i)) {
+                // Reported speech, lists, corrections, hedges and conditionals all surface as unsupported clauses.
+                if (!parseClause(tokens, start, i, numbers, evidence)) return List.of();
                 start = i;
             }
         }
         return List.copyOf(evidence);
     }
 
+    private static boolean onlySpacesAndSeparators(String text, List<Token> tokens) {
+        int from = 0;
+        for (var token : tokens) {
+            if (!onlySpacesAndSeparators(text, from, token.start())) return false;
+            from = token.end();
+        }
+        return onlySpacesAndSeparators(text, from, text.length());
+    }
+
+    private static boolean onlySpacesAndSeparators(String text, int from, int to) {
+        for (int i = from; i < to; i++) {
+            char c = text.charAt(i);
+            if (!SpanishTokens.isSpace(c) && SEPARATORS.indexOf(c) < 0) return false;
+        }
+        return true;
+    }
+
     private static boolean isBoundary(String text, List<Token> tokens, int i) {
-        var before = tokens.get(i - 1);
-        var current = tokens.get(i);
-        String gap = text.substring(before.end(), current.start());
-        if (gap.codePoints().anyMatch(cp -> cp == '.' || cp == ',' || cp == ';' || cp == ':'
-                || cp == '!' || cp == '?' || cp == '¡' || cp == '¿')) return true;
+        for (int c = tokens.get(i - 1).end(); c < tokens.get(i).start(); c++) {
+            if (SEPARATORS.indexOf(text.charAt(c)) >= 0) return true;
+        }
         // Split before "y" only when it introduces a recognized clause, not a compound number.
-        return current.word().equals("y") && i + 1 < tokens.size()
-                && whitespace(gap) && startsClause(tokens, i + 1);
+        return tokens.get(i).word().equals("y") && startsClause(tokens, i + 1);
     }
 
     private static boolean startsClause(List<Token> tokens, int i) {
@@ -72,61 +80,32 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
         return VERBS.containsKey(tokens.get(i).word()) || tokens.get(i).word().equals("empece");
     }
 
-    private static void parseClause(String text, List<Token> tokens, int from, int to,
-                                    List<SpanishNumberNormalizer.NumberMention> numbers, List<Evidence> output) {
-        if (from == to) return;
-        int first = tokens.get(from).start(), last = tokens.get(to - 1).end();
-        int before = first - 1, after = last;
-        while (before >= 0 && space(text.charAt(before))) before--;
-        while (after < text.length() && space(text.charAt(after))) after++;
-        if ((before >= 0 && "¿?+-−‐‑–—/".indexOf(text.charAt(before)) >= 0)
-                || (after < text.length() && "¿?+-−‐‑–—/".indexOf(text.charAt(after)) >= 0)) return;
-        // Reject stray punctuation and malformed mixed decimals like "seis.5".
-        if ((first > 0 && !space(text.charAt(first - 1)) && ".,;:!¡".indexOf(text.charAt(first - 1)) < 0)
-                || (last < text.length() && !space(text.charAt(last)) && ".,;:!¡".indexOf(text.charAt(last)) < 0)
-                || (last + 1 < text.length() && ".,".indexOf(text.charAt(last)) >= 0
-                    && Character.isDigit(text.charAt(last + 1)))) return;
-        // Only whitespace is allowed between words; stray punctuation cannot create evidence.
-        for (int i = from + 1; i < to; i++) {
-            if (!whitespace(text.substring(tokens.get(i - 1).end(), tokens.get(i).start()))) return;
-        }
+    /** Returns false for an unsupported clause; a clause of joining words alone is accepted without evidence. */
+    private static boolean parseClause(List<Token> tokens, int from, int to, Map<Integer, NumberMention> numbers,
+                                       List<Evidence> output) {
         int i = from;
         if (tokens.get(i).word().equals("y")) i++;
         if (i < to && SEQUENCE.contains(tokens.get(i).word())) i++;
-        int phraseStart = i < to ? tokens.get(i).start() : 0;
-        if (i < to && tokens.get(i).word().equals("yo")) i++;
+        if (i == to) return true;
+        int phraseStart = tokens.get(i).start();
+        if (tokens.get(i).word().equals("yo")) i++;
         boolean me = i < to && tokens.get(i).word().equals("me");
         if (me) i++;
-        if (i >= to) return;
+        if (i >= to) return false;
         String verb = tokens.get(i++).word();
         Action action = VERBS.get(verb);
         if (verb.equals("empece")) {
             action = Action.HAD;
-            if (i >= to || !tokens.get(i++).word().equals("con")) return;
+            if (i >= to || !tokens.get(i++).word().equals("con")) return false;
         }
-        if (action == null || (me && action != Action.REMAINED) || i >= to) return;
-        int numberStart = tokens.get(i).start();
-        SpanishNumberNormalizer.NumberMention number = null;
-        for (var candidate : numbers) {
-            if (candidate.start() == numberStart) { number = candidate; break; }
-        }
-        if (number == null) return;
+        if (action == null || (me && action != Action.REMAINED) || i >= to) return false;
+        int phraseEnd = tokens.get(to - 1).end();
+        var number = numbers.get(tokens.get(i).start());
+        if (number == null || number.end() > phraseEnd) return false;
         while (i < to && tokens.get(i).end() <= number.end()) i++;
         if (i < to && NOUNS.contains(tokens.get(i).word())) i++;
-        if (i != to) return;
-        output.add(new Evidence(action, number.value(), phraseStart, tokens.get(to - 1).end(),
-                number.start(), number.end()));
+        if (i != to) return false;
+        output.add(new Evidence(action, number.value(), phraseStart, phraseEnd, number.start(), number.end()));
+        return true;
     }
-
-    private static boolean whitespace(String value) {
-        return !value.isEmpty() && value.codePoints().allMatch(cp -> Character.isWhitespace(cp) || Character.isSpaceChar(cp));
-    }
-
-    private static boolean space(char value) { return Character.isWhitespace(value) || Character.isSpaceChar(value); }
-
-    private static String fold(String value) {
-        return MARKS.matcher(Normalizer.normalize(value.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)).replaceAll("");
-    }
-
-    private record Token(String word, int start, int end) {}
 }

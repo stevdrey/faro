@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.stevdrey.faro.assessment;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
+import io.github.stevdrey.faro.assessment.SpanishTokens.Token;
 
 /** Extracts literal number mentions and cue words, never an answer or an assessment. */
 public final class SpanishNumberNormalizer {
-    private static final Pattern TOKEN = Pattern.compile("[\\p{L}\\p{M}\\p{N}_]+");
     private static final Pattern ASCII_DIGITS = Pattern.compile("[0-9]+");
     private static final Map<String, Integer> SMALL = Map.ofEntries(
             Map.entry("cero", 0), Map.entry("un", 1), Map.entry("uno", 1), Map.entry("una", 1),
@@ -35,7 +33,6 @@ public final class SpanishNumberNormalizer {
             "cientos", "centenar", "centenares", "docena", "docenas");
     private static final Set<String> DECIMAL_SEPARATORS = Set.of("coma", "punto");
     private static final String SIGNS = "+-−‐‑–—";
-    private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Set<String> NEGATION = Set.of("no", "nunca", "jamas", "tampoco");
     private static final Set<String> UNCERTAINTY = Set.of("quiza", "quizas", "posiblemente", "probablemente");
 
@@ -61,11 +58,11 @@ public final class SpanishNumberNormalizer {
     /** Matches only explicit forms. The caller must treat every result as unconfirmed. */
     public static Result normalize(String transcript) {
         Objects.requireNonNull(transcript, "transcript");
-        var tokens = new ArrayList<Token>();
-        var matcher = TOKEN.matcher(transcript);
-        while (matcher.find()) {
-            tokens.add(new Token(fold(matcher.group()), matcher.start(), matcher.end()));
-        }
+        return normalize(transcript, SpanishTokens.tokenize(transcript));
+    }
+
+    /** Reuses tokens already produced by {@link SpanishTokens#tokenize} for the same transcript. */
+    static Result normalize(String transcript, List<Token> tokens) {
         var numbers = new ArrayList<NumberMention>();
         var cues = new ArrayList<Cue>();
         for (int i = 0; i < tokens.size(); i++) {
@@ -227,12 +224,6 @@ public final class SpanishNumberNormalizer {
 
     private static boolean separatedByWhitespace(Token a, Token b, String text) {
         return a.end() < b.start() && text.substring(a.end(), b.start()).codePoints()
-                .allMatch(cp -> Character.isWhitespace(cp) || Character.isSpaceChar(cp));
+                .allMatch(SpanishTokens::isSpace);
     }
-
-    private static String fold(String text) {
-        return MARKS.matcher(Normalizer.normalize(text.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)).replaceAll("");
-    }
-
-    private record Token(String word, int start, int end) {}
 }

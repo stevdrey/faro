@@ -43,12 +43,12 @@ class SpanishExplanationInterpreterTests {
 
     @Test
     void preservesOrderRepetitionAndOriginalOffsetsWithoutJudgingArithmetic() {
-        String text = "😀. Tenía doce bloques y luego sumé seis, quité seis; me quedaron 99.";
+        String text = ". Teni\u0301a doce bloques y luego sumé seis, quité seis; me quedaron 99.";
         var result = interpreter.interpret(text);
         assertThat(result).extracting(ExplanationInterpreter.Evidence::action).containsExactly(HAD, ADDED, REMOVED, REMAINED);
         assertThat(result).extracting(ExplanationInterpreter.Evidence::quantity).containsExactly(12, 6, 6, 99);
         assertThat(result.stream().map(e -> text.substring(e.phraseStart(), e.phraseEnd())).toList())
-                .containsExactly("Tenía doce bloques", "sumé seis", "quité seis", "me quedaron 99");
+                .containsExactly("Teni\u0301a doce bloques", "sumé seis", "quité seis", "me quedaron 99");
         assertThat(result.stream().map(e -> text.substring(e.numberStart(), e.numberEnd())).toList())
                 .containsExactly("doce", "seis", "seis", "99");
         assertThatThrownBy(() -> result.clear()).isInstanceOf(UnsupportedOperationException.class);
@@ -64,17 +64,24 @@ class SpanishExplanationInterpreterTests {
     }
 
     @Test
-    void rejectsConditionalSiWithoutConfusingAffirmativeSi() {
+    void rejectsConditionalAndAffirmativeSiClauses() {
         for (String text : List.of("si tenía seis y puse dos", "SI tenía seis, puse dos y quité uno",
-                "tenía seis; Si puse dos", "tenía seis y si puse dos")) {
+                "tenía seis; Si puse dos", "tenía seis y si puse dos", "porque sí; puse seis",
+                "porque SÍ; puse seis", "porque si\u0301; puse seis", "puse seis, sí")) {
             assertThat(interpreter.interpret(text)).as(text).isEmpty();
-        }
-        for (String text : List.of("porque sí; puse seis", "porque SÍ; puse seis", "porque si\u0301; puse seis")) {
-            assertThat(interpreter.interpret(text)).as(text).extracting(ExplanationInterpreter.Evidence::action)
-                    .containsExactly(ADDED);
         }
         assertThat(interpreter.interpret("tenía seis y puse dos"))
                 .extracting(ExplanationInterpreter.Evidence::action).containsExactly(HAD, ADDED);
+    }
+
+    @Test
+    void acceptsClausesOfJoiningWordsAlone() {
+        assertThat(interpreter.interpret("tenía seis, y luego, puse dos"))
+                .extracting(ExplanationInterpreter.Evidence::action).containsExactly(HAD, ADDED);
+        assertThat(interpreter.interpret("y tenía seis")).extracting(ExplanationInterpreter.Evidence::action)
+                .containsExactly(HAD);
+        assertThat(interpreter.interpret("¡puse dos!")).extracting(ExplanationInterpreter.Evidence::action)
+                .containsExactly(ADDED);
     }
 
     @Test
@@ -82,22 +89,24 @@ class SpanishExplanationInterpreterTests {
         for (String text : List.of("dijo: « tenía seis »", "dijo: «tenía seis»", "dijo: \" tenía seis \"",
                 "dijo: ' tenía seis '", "dijo: ‘ tenía seis ’", "dijo: “ tenía seis ”",
                 "dijo: ‹ tenía seis ›", "dijo: « tenía seis; puse dos », quité uno",
-                "tenía seis; dijo: «puse dos", "puse dos »")) {
+                "tenía seis; dijo: «puse dos", "puse dos »", "＂ tenía seis ＂", "＇ tenía seis ＇",
+                "″ tenía seis ″", "` tenía seis `", "「tenía seis」", "tenía seis？", "tenía seis 😀")) {
             assertThat(interpreter.interpret(text)).as(text).isEmpty();
         }
     }
 
     @Test
-    void ignoresAmbiguousOrUnsupportedClauses() {
+    void rejectsWholeInputWhenAnyClauseIsUnsupported() {
         for (String text : List.of("porque", "tenía", "tenía 121", "tenía dos mil", "tenía seis o siete",
                 "si tenía seis", "ella tenía seis", "¿tenía seis?", "¿ tenía seis ?", "tenía seis más dos",
                 "tenía 6/2", "tenía seis-", "tenía seis juguetes", "me puse seis", "empecé seis",
                 "tenía 6.5", "tenía seis.5", "puse treinta y", "tenía seis y siete", "‘tenía seis’",
-                "¿tenía seis y puse dos y quité tres?")) {
+                "¿tenía seis y puse dos y quité tres?", "Ana dijo: tenía seis", "Ana dijo, tenía seis",
+                "ella, tenía seis", "mi hermano: puse dos", "tenía seis, siete", "tenía seis, siete u ocho",
+                "quité dos, digo, tres", "tenía seis, más bien siete", "me quedaron seis, más o menos",
+                "creo, tenía seis", "tenía 6 . 5", "tenía 1, 5", "tenía seis y luego", "tenía seis y y puse dos")) {
             assertThat(interpreter.interpret(text)).as(text).isEmpty();
         }
-        assertThat(interpreter.interpret("porque sí; puse seis")).extracting(ExplanationInterpreter.Evidence::action)
-                .containsExactly(ADDED);
     }
 
     @Test
@@ -107,5 +116,17 @@ class SpanishExplanationInterpreterTests {
         assertThat(interpreter.interpret("tenía seis" + " ".repeat(16_000))).isEmpty();
         assertThat(interpreter.interpret("tenía seis" + " ".repeat(16_000 - "tenía seis".length()))).hasSize(1);
         assertThatNullPointerException().isThrownBy(() -> interpreter.interpret(null));
+    }
+
+    @Test
+    void evidenceRejectsInvalidRanges() {
+        assertThatNullPointerException().isThrownBy(() -> new ExplanationInterpreter.Evidence(null, 1, 0, 2, 0, 1));
+        assertThatIllegalArgumentException().isThrownBy(() -> new ExplanationInterpreter.Evidence(HAD, -1, 0, 2, 0, 1));
+        assertThatIllegalArgumentException().isThrownBy(() -> new ExplanationInterpreter.Evidence(HAD, 1, -1, 2, 0, 1));
+        assertThatIllegalArgumentException().isThrownBy(() -> new ExplanationInterpreter.Evidence(HAD, 1, 1, 2, 0, 1));
+        assertThatIllegalArgumentException().isThrownBy(() -> new ExplanationInterpreter.Evidence(HAD, 1, 0, 2, 1, 1));
+        assertThatIllegalArgumentException().isThrownBy(() -> new ExplanationInterpreter.Evidence(HAD, 1, 0, 2, 0, 3))
+                .withMessageNotContaining("3");
+        assertThat(new ExplanationInterpreter.Evidence(HAD, 0, 0, 1, 0, 1).quantity()).isZero();
     }
 }
