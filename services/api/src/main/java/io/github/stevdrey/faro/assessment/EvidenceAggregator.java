@@ -53,6 +53,9 @@ public final class EvidenceAggregator {
     public static Result missingAddendHypothesis(ExerciseOperands.MissingAddend operands, Integer answer,
             String transcript) {
         Objects.requireNonNull(transcript, "transcript");
+        if (transcript.isBlank()) {
+            return missingAddend(operands, answer, SpeechStatus.UNAVAILABLE, List.of());
+        }
         var claims = new SpanishExplanationInterpreter().interpret(transcript);
         var result = missingAddend(operands, answer, SpeechStatus.AVAILABLE, claims);
         if (answer == null || !claims.isEmpty() || transcript.length() > 16_000) return result;

@@ -57,6 +57,19 @@ class EvidenceAggregatorTests {
         assertThatNullPointerException().isThrownBy(() -> missingAddend(operands, 6, null, List.of()));
     }
 
+    @Test void blankHypothesesAreNotEvaluableAndPreserveVisualState() {
+        for (String text : List.of("", " \t\n")) {
+            assertThat(missingAddendHypothesis(operands, 6, text))
+                    .isEqualTo(new Result(ActionMathState.CORRECTA, StrategyEvidenceState.NO_EVALUABLE));
+            assertThat(missingAddendHypothesis(operands, 7, text))
+                    .isEqualTo(new Result(ActionMathState.INCORRECTA, StrategyEvidenceState.NO_EVALUABLE));
+            assertThat(missingAddendHypothesis(operands, null, text))
+                    .isEqualTo(new Result(ActionMathState.SIN_TERMINAR, StrategyEvidenceState.NO_EVALUABLE));
+        }
+        assertThat(missingAddendHypothesis(operands, 6, "porque").strategyEvidenceState())
+                .isEqualTo(StrategyEvidenceState.INSUFICIENTE);
+    }
+
     @Test void onlyCompleteConnectedConfirmedEquationsIdentifyArithmeticError() {
         var subtraction = new ExerciseOperands.Subtraction(53, 28);
         assertThat(confirmedSubtractionSteps(subtraction, List.of(new Step(53, 20, 33), new Step(33, 8, 26))))

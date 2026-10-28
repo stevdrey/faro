@@ -3,7 +3,7 @@
 `EvidenceAggregator` is a standalone, pure domain function. For a missing-addend
 exercise it checks the supplied completed visual count with `MissingAddendMath`;
 a null count means unfinished. The visual state is independent of speech. An
-unavailable recognition result is `NO_EVALUABLE`; an available but unrecognized
+unavailable recognition result or blank hypothesis is `NO_EVALUABLE`; an available but unrecognized
 or vague hypothesis is `INSUFICIENTE`. The caller must supply extracted evidence
 from the same attempt and correctly distinguish unavailable speech from a valid
 but empty extraction.
