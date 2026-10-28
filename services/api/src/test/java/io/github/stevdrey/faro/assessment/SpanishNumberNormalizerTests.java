@@ -92,6 +92,19 @@ class SpanishNumberNormalizerTests {
     }
 
     @Test
+    void preservesAdjacentCompleteHundredsAndOtherMentions() {
+        String text = "ciento uno ciento uno ciento veinte 6 ciento dos siete";
+        var mentions = SpanishNumberNormalizer.normalize(text).numbers();
+        assertThat(mentions).extracting(SpanishNumberNormalizer.NumberMention::value)
+                .containsExactly(101, 101, 120, 6, 102, 7);
+        assertThat(mentions.stream().map(n -> text.substring(n.start(), n.end())).toList())
+                .containsExactly("ciento uno", "ciento uno", "ciento veinte", "6", "ciento dos", "siete");
+        for (String outOfRange : List.of("ciento veinte mil", "ciento uno mil", "ciento veinte y seis")) {
+            assertThat(SpanishNumberNormalizer.normalize(outOfRange).numbers()).as(outOfRange).isEmpty();
+        }
+    }
+
+    @Test
     void rejectsUnsupportedAndPartialExpressions() {
         for (String text : List.of("", "sin números", "seisabc abc6 6abc _6", "121", "999999999999999999999",
                 "-6", "+6", "6,5", "3.14", ".5", ",5", "−.5", "-.5", "+,5", "0.5", "0,5",

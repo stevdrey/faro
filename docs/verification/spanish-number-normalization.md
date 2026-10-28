@@ -19,6 +19,9 @@ rejected as a whole. The vocabulary is deliberately finite: it cannot identify
 all ASR errors, ambiguous grammar, implicit quantities, or every possible
 out-of-range expression. Adjacent ordinary mentions are not combined into an
 invented number.
+Completed supported hundreds can be followed by another number without punctuation;
+an immediately following scale word or tens conjunction is treated as part of
+the potentially out-of-range compound.
 An ASCII digit immediately following a period or comma is conservatively rejected,
 including decimals without an integer part; use whitespace to separate list items.
 

@@ -88,6 +88,16 @@ public final class SpanishNumberNormalizer {
         int end = start + 1;
         String first = tokens.get(start).word();
         if (first.equals("ciento") || LARGE.contains(first)) {
+            if (first.equals("ciento") && end < tokens.size()
+                    && separatedByWhitespace(tokens.get(start), tokens.get(end), text)) {
+                Integer tail = SMALL.get(tokens.get(end).word());
+                if (tail != null && tail >= 1 && tail <= 20) {
+                    boolean followedByScale = nextIsLarge(tokens, end, text);
+                    boolean followedByConjunction = isTens(tokens.get(end).word())
+                            && nextIs(tokens, end, "y", text);
+                    if (!followedByScale && !followedByConjunction) return end + 1;
+                }
+            }
             while (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
                     && numericWord(tokens.get(end).word())) end++;
             // Consume the tens suffix even after multiple out-of-range numeric words.
@@ -157,6 +167,11 @@ public final class SpanishNumberNormalizer {
     private static boolean isTens(String word) {
         Integer value = SMALL.get(word);
         return value != null && value >= 20 && value <= 90 && value % 10 == 0;
+    }
+
+    private static boolean nextIsLarge(List<Token> tokens, int index, String text) {
+        return index + 1 < tokens.size() && LARGE.contains(tokens.get(index + 1).word())
+                && separatedByWhitespace(tokens.get(index), tokens.get(index + 1), text);
     }
 
     private static boolean nextIs(List<Token> tokens, int index, String word, String text) {
