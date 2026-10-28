@@ -14,7 +14,7 @@ The canonical enumerations above retain their original Spanish identifiers for c
 
 FARO-004 implements these values in the provider-independent Java `AssessmentResult` and the [version 1 assessment contract](../contracts/assessments/v1/README.md), with strict JSON binding, readonly TypeScript types, and six shared synthetic fixtures. All three axes remain independent; the contract preserves supplied states rather than inferring them. Required `ruleIds` (possibly empty) and nonblank `assessmentVersion` provide minimal provenance. The rule catalog and emission belong to FARO-021; structured evidence references remain future work.
 
-The processing pipeline and safety policies below describe future behavior. This contract does not yet implement an evaluator, feedback selection, speech interpretation, or retries.
+The processing pipeline and safety policies below describe future integration. FARO-019 implements standalone bounded extraction of literal explanation evidence, but not an evaluator, feedback selection, integration with speech, or retries. See [verification](verification/spoken-explanation-patterns.md).
 
 ## Inputs and evidence processing
 
