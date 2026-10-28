@@ -83,12 +83,16 @@ class SpanishNumberNormalizerTests {
     @Test
     void rejectsEntireOutOfRangeCompoundsWithoutLosingSeparateMentions() {
         for (String text : List.of("mil ciento treinta y dos", "doscientos mil treinta y seis",
-                "mil treinta y dos", "mil ciento treinta y", "mil ciento treinta y diez")) {
+                "mil treinta y dos", "mil ciento treinta y", "mil ciento treinta y diez", "mil y seis",
+                "mil y treinta y dos", "doscientos mil y seis", "ciento veinte mil y seis")) {
             assertThat(SpanishNumberNormalizer.normalize(text).numbers()).as(text).isEmpty();
         }
         var result = SpanishNumberNormalizer.normalize("mil ciento treinta y dos, seis y siete");
         assertThat(result.numbers()).extracting(SpanishNumberNormalizer.NumberMention::value)
                 .containsExactly(6, 7);
+        var separate = SpanishNumberNormalizer.normalize("mil y seis, siete y ocho");
+        assertThat(separate.numbers()).extracting(SpanishNumberNormalizer.NumberMention::value)
+                .containsExactly(7, 8);
     }
 
     @Test

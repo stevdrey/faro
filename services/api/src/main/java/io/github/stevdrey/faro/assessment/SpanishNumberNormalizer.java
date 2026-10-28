@@ -98,8 +98,13 @@ public final class SpanishNumberNormalizer {
                     if (!followedByScale && !followedByConjunction) return end + 1;
                 }
             }
-            while (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)
-                    && numericWord(tokens.get(end).word())) end++;
+            boolean hasScale = LARGE.contains(first);
+            while (end < tokens.size() && separatedByWhitespace(tokens.get(end - 1), tokens.get(end), text)) {
+                String word = tokens.get(end).word();
+                if (!numericWord(word) && !(hasScale && word.equals("y"))) break;
+                hasScale |= LARGE.contains(word);
+                end++;
+            }
             // Consume the tens suffix even after multiple out-of-range numeric words.
             if (end > start + 1 && isTens(tokens.get(end - 1).word())
                     && nextIs(tokens, end - 1, "y", text)) {
