@@ -144,7 +144,7 @@ public final class SpanishNumberNormalizer {
     private static boolean touchesNumericNotation(Token token, String text) {
         int start = token.start(), end = token.end();
         if (start > 0 && "+-−".indexOf(text.charAt(start - 1)) >= 0) return true;
-        return (start >= 2 && ".,".indexOf(text.charAt(start - 1)) >= 0 && Character.isDigit(text.charAt(start - 2)))
+        return (start > 0 && ".,".indexOf(text.charAt(start - 1)) >= 0)
                 || (end + 1 < text.length() && ".,".indexOf(text.charAt(end)) >= 0
                 && Character.isDigit(text.charAt(end + 1)));
     }

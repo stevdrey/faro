@@ -94,12 +94,15 @@ class SpanishNumberNormalizerTests {
     @Test
     void rejectsUnsupportedAndPartialExpressions() {
         for (String text : List.of("", "sin números", "seisabc abc6 6abc _6", "121", "999999999999999999999",
-                "-6", "+6", "6,5", "3.14", "treinta-y-tres", "ciento veintiuno", "ciento veinte y seis", "ciento treinta y tres", "doscientos seis",
+                "-6", "+6", "6,5", "3.14", ".5", ",5", "−.5", "-.5", "+,5", "0.5", "0,5",
+                "treinta-y-tres", "ciento veintiuno", "ciento veinte y seis", "ciento treinta y tres", "doscientos seis",
                 "dos mil seis", "ciento", "treinta y", "treinta y diez", "veinte y seis")) {
             assertThat(SpanishNumberNormalizer.normalize(text).numbers()).as(text).isEmpty();
         }
         assertThat(SpanishNumberNormalizer.normalize("seis, siete y seis").numbers())
                 .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(6, 7, 6);
+        assertThat(SpanishNumberNormalizer.normalize("6, 5. 4").numbers())
+                .extracting(SpanishNumberNormalizer.NumberMention::value).containsExactly(6, 5, 4);
         assertThatNullPointerException().isThrownBy(() -> SpanishNumberNormalizer.normalize(null));
     }
 }

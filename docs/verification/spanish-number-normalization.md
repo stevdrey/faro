@@ -19,6 +19,8 @@ rejected as a whole. The vocabulary is deliberately finite: it cannot identify
 all ASR errors, ambiguous grammar, implicit quantities, or every possible
 out-of-range expression. Adjacent ordinary mentions are not combined into an
 invented number.
+An ASCII digit immediately following a period or comma is conservatively rejected,
+including decimals without an integer part; use whitespace to separate list items.
 
 Cue vocabulary (case and accent insensitive): `no`, `nunca`, `jamás`, `tampoco`;
 `quizá`, `quizás`, `tal vez`, `posiblemente`, `probablemente`. These are literal
