@@ -30,7 +30,7 @@ public record ProviderConfig(String provider, String language,
                              java.time.Duration timeout, java.net.URI endpoint) {}
 ```
 
-These signatures summarize the implemented pure Java contracts in `io.github.stevdrey.faro.speech`; constructor validation and privacy protections are omitted from the snippets. A future streaming interface can replace `byte[]` behind the same domain-level boundary. Keep ASR distinct from natural-language explanation interpretation and from deterministic math. `ExplanationInterpreter` remains a future port, not implemented here.
+These signatures summarize the implemented pure Java contracts in `io.github.stevdrey.faro.speech`; constructor validation and privacy protections are omitted from the snippets. A future streaming interface can replace `byte[]` behind the same domain-level boundary. Keep ASR distinct from natural-language explanation interpretation and from deterministic math. FARO-019 adds a separate pure `ExplanationInterpreter` port and a bounded Spanish rules implementation; it is not wired into the ASR preview or assessment. See [verification](verification/spoken-explanation-patterns.md).
 
 ### Audio and result semantics
 
