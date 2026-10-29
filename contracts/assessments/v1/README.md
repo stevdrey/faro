@@ -15,11 +15,11 @@ FARO-004 / [issue #22](https://github.com/stevdrey/faro/issues/22) defines indep
 
 All fields are required and non-null. The enum identifiers retain their canonical Spanish spelling and case. Numbers and booleans are never coerced into enum values or strings. `schemaVersion` must be an integer token: `"1"`, `1.0`, booleans, arrays, and unsupported versions are rejected. Unknown fields are rejected.
 
-`ruleIds` and `assessmentVersion` are opaque provenance strings, preserved without trimming, sorting, or normalization. Blank means empty or entirely Java `String.isBlank()` whitespace. The contract does not impose a semantic-version format, rule catalog, uniqueness constraint, or nonempty rule list. Defining and emitting real rule identifiers belongs to FARO-021. `synthetic-v1` and `synthetic.*.v1` in the fixtures are examples, not registered production rules.
+`ruleIds` and `assessmentVersion` are opaque provenance strings, preserved without trimming, sorting, or normalization. Blank means empty or entirely Java `String.isBlank()` whitespace. The contract does not impose a semantic-version format, rule catalog, uniqueness constraint, or nonempty rule list. FARO-021 defines real aggregation rule identifiers in a separate domain trace; this wire contract does not emit them automatically. `synthetic-v1` and `synthetic.*.v1` in the fixtures are examples, not registered production rules.
 
 The axes are independent. All 3 × 5 × 4 = 60 combinations can be represented; constructing or decoding a result does not select or enforce a pedagogical policy. In particular, `CORRECTA` can coexist with `INSUFICIENTE`, `CONFLICTO_ASR`, or `NO_EVALUABLE`. Insufficient evidence never means the child does not understand, and a speech failure must not change an action's mathematical correctness. Future evaluators and feedback policies must choose states conservatively; these data types do not compute them.
 
-There are no raw audio, transcripts, expected answers, personal identifiers, timestamps, evidence references, or freeform feedback fields. Structured evidence references and their integration remain future work.
+There are no raw audio, transcripts, expected answers, personal identifiers, timestamps, evidence references, or freeform feedback fields. The separate FARO-021 domain trace has input categories rather than individual evidence references; integration remains future work.
 
 ## Shared synthetic fixtures
 
