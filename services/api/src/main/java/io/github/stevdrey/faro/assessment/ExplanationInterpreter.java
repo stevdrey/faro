@@ -24,7 +24,26 @@ public interface ExplanationInterpreter {
         public String toString() { return "Evidence[redacted]"; }
     }
 
-    List<Evidence> interpret(String transcript);
+    /** Why an interpretation has, or lacks, evidence; it never says what the input contained. */
+    enum Outcome { EXTRACTED, NOTHING_EXTRACTED, UNSUPPORTED }
+
+    /** Evidence is present exactly when the outcome is {@link Outcome#EXTRACTED}. */
+    record Interpretation(Outcome outcome, List<Evidence> evidence) {
+        public Interpretation {
+            Objects.requireNonNull(outcome, "outcome");
+            evidence = List.copyOf(Objects.requireNonNull(evidence, "evidence"));
+            if (evidence.isEmpty() == (outcome == Outcome.EXTRACTED)) {
+                throw new IllegalArgumentException("Evidence must be present exactly when extracted");
+            }
+        }
+
+        static Interpretation unsupported() { return new Interpretation(Outcome.UNSUPPORTED, List.of()); }
+    }
+
+    /** An unsupported part voids the whole input, which is distinct from an input with nothing to extract. */
+    Interpretation interpretation(String transcript);
+
+    default List<Evidence> interpret(String transcript) { return interpretation(transcript).evidence(); }
 
     /**
      * The value of a complete hypothesis that is one bare number, with only spaces or separators

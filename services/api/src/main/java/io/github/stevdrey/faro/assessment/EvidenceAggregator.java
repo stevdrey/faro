@@ -6,7 +6,6 @@ import static io.github.stevdrey.faro.assessment.AssessmentTrace.Rule.*;
 import io.github.stevdrey.faro.exercises.ExerciseOperands;
 import io.github.stevdrey.faro.exercises.MissingAddendMath;
 import io.github.stevdrey.faro.exercises.SubtractionDecompositionMath;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -19,18 +18,10 @@ public final class EvidenceAggregator {
     /** No feedback policy or rule provenance is selected here. */
     public record Result(ActionMathState actionMathState, StrategyEvidenceState strategyEvidenceState) {}
 
-    /** A result and the rules used to produce its two independent states. */
-    public record TracedResult(Result result, AssessmentTrace trace) {
-        public TracedResult {
-            Objects.requireNonNull(result, "result");
-            Objects.requireNonNull(trace, "trace");
-        }
-    }
-
-    /** A confirmed-subtraction evidence state and its applied rule. */
-    public record TracedStrategy(StrategyEvidenceState state, AssessmentTrace trace) {
-        public TracedStrategy {
-            Objects.requireNonNull(state, "state");
+    /** A decision and the rules applied to produce it. */
+    public record Traced<T>(T value, AssessmentTrace trace) {
+        public Traced {
+            Objects.requireNonNull(value, "value");
             Objects.requireNonNull(trace, "trace");
         }
     }
@@ -38,11 +29,17 @@ public final class EvidenceAggregator {
     /** A null answer represents an unfinished visual attempt, not an incorrect answer. */
     public static Result missingAddend(ExerciseOperands.MissingAddend operands, Integer answer,
             SpeechStatus status, List<ExplanationInterpreter.Evidence> speech) {
-        return missingAddendTraced(operands, answer, status, speech).result();
+        return missingAddendTraced(operands, answer, status, speech).value();
     }
 
-    public static TracedResult missingAddendTraced(ExerciseOperands.MissingAddend operands, Integer answer,
+    public static Traced<Result> missingAddendTraced(ExerciseOperands.MissingAddend operands, Integer answer,
             SpeechStatus status, List<ExplanationInterpreter.Evidence> speech) {
+        return missingAddendTraced(operands, answer, status, speech, NO_CLAIMS);
+    }
+
+    /** {@code emptyRule} records why available speech produced no claims. */
+    private static Traced<Result> missingAddendTraced(ExerciseOperands.MissingAddend operands, Integer answer,
+            SpeechStatus status, List<ExplanationInterpreter.Evidence> speech, AssessmentTrace.Rule emptyRule) {
         Objects.requireNonNull(operands, "operands");
         Objects.requireNonNull(status, "status");
         var claims = List.copyOf(Objects.requireNonNull(speech, "speech"));
@@ -58,7 +55,7 @@ public final class EvidenceAggregator {
         };
         if (status == SpeechStatus.UNAVAILABLE) return traced(action, StrategyEvidenceState.NO_EVALUABLE, actionRule, SPEECH_UNAVAILABLE);
         if (answer == null) return traced(action, StrategyEvidenceState.INSUFICIENTE, actionRule, VISUAL_UNFINISHED);
-        if (claims.isEmpty()) return traced(action, StrategyEvidenceState.INSUFICIENTE, actionRule, NO_CLAIMS);
+        if (claims.isEmpty()) return traced(action, StrategyEvidenceState.INSUFICIENTE, actionRule, emptyRule);
 
         // Only explicit added quantities map directly to the visual answer, compared as a
         // total so that adding in steps (counting on) is not a conflict. Other quantities
@@ -87,10 +84,10 @@ public final class EvidenceAggregator {
     /** Interprets a complete hypothesis, including a standalone number as an answer claim. */
     public static Result missingAddendHypothesis(ExplanationInterpreter interpreter,
             ExerciseOperands.MissingAddend operands, Integer answer, String transcript) {
-        return missingAddendHypothesisTraced(interpreter, operands, answer, transcript).result();
+        return missingAddendHypothesisTraced(interpreter, operands, answer, transcript).value();
     }
 
-    public static TracedResult missingAddendHypothesisTraced(ExplanationInterpreter interpreter,
+    public static Traced<Result> missingAddendHypothesisTraced(ExplanationInterpreter interpreter,
             ExerciseOperands.MissingAddend operands, Integer answer, String transcript) {
         Objects.requireNonNull(interpreter, "interpreter");
         Objects.requireNonNull(transcript, "transcript");
@@ -98,21 +95,22 @@ public final class EvidenceAggregator {
         if (transcript.codePoints().noneMatch(Character::isLetterOrDigit)) {
             return missingAddendTraced(operands, answer, SpeechStatus.UNAVAILABLE, List.of());
         }
-        var claims = interpreter.interpret(transcript);
-        var result = missingAddendTraced(operands, answer, SpeechStatus.AVAILABLE, claims);
+        var interpretation = interpreter.interpretation(transcript);
+        var claims = interpretation.evidence();
+        var emptyRule = interpretation.outcome() == ExplanationInterpreter.Outcome.UNSUPPORTED
+                ? UNSUPPORTED_SPEECH : NO_CLAIMS;
+        var result = missingAddendTraced(operands, answer, SpeechStatus.AVAILABLE, claims, emptyRule);
         if (answer == null || !claims.isEmpty()) return result;
         var number = interpreter.standaloneNumber(transcript);
-        boolean conflict = number.isPresent() && number.getAsInt() != answer;
-        var rules = new ArrayList<>(result.trace().rules());
-        rules.add(conflict ? STANDALONE_CONFLICT : STANDALONE_NO_CONFLICT);
-        return new TracedResult(new Result(result.result().actionMathState(), conflict
-                ? StrategyEvidenceState.CONFLICTO_ASR : result.result().strategyEvidenceState()),
-                new AssessmentTrace(AssessmentTrace.VERSION, rules));
+        if (number.isEmpty()) return new Traced<>(result.value(), result.trace().then(STANDALONE_ABSENT));
+        if (number.getAsInt() == answer) return new Traced<>(result.value(), result.trace().then(STANDALONE_MATCH));
+        return new Traced<>(new Result(result.value().actionMathState(), StrategyEvidenceState.CONFLICTO_ASR),
+                result.trace().then(STANDALONE_CONFLICT));
     }
 
-    private static TracedResult traced(ActionMathState action, StrategyEvidenceState strategy,
+    private static Traced<Result> traced(ActionMathState action, StrategyEvidenceState strategy,
             AssessmentTrace.Rule actionRule, AssessmentTrace.Rule evidenceRule) {
-        return new TracedResult(new Result(action, strategy), AssessmentTrace.of(actionRule, evidenceRule));
+        return new Traced<>(new Result(action, strategy), AssessmentTrace.of(actionRule, evidenceRule));
     }
 
     private static boolean matches(ExplanationInterpreter.Evidence evidence,
@@ -126,17 +124,17 @@ public final class EvidenceAggregator {
      */
     public static StrategyEvidenceState confirmedSubtractionSteps(ExerciseOperands.Subtraction operands,
             List<SubtractionDecompositionMath.Step> confirmedSteps) {
-        return confirmedSubtractionStepsTraced(operands, confirmedSteps).state();
+        return confirmedSubtractionStepsTraced(operands, confirmedSteps).value();
     }
 
-    public static TracedStrategy confirmedSubtractionStepsTraced(ExerciseOperands.Subtraction operands,
+    public static Traced<StrategyEvidenceState> confirmedSubtractionStepsTraced(ExerciseOperands.Subtraction operands,
             List<SubtractionDecompositionMath.Step> confirmedSteps) {
         var result = SubtractionDecompositionMath.check(operands, confirmedSteps);
         if (result.strategy() != SubtractionDecompositionMath.Strategy.VALID) {
-            return new TracedStrategy(StrategyEvidenceState.INSUFICIENTE, AssessmentTrace.of(SUBTRACTION_INSUFFICIENT));
+            return new Traced<>(StrategyEvidenceState.INSUFICIENTE, AssessmentTrace.of(SUBTRACTION_INSUFFICIENT));
         }
         boolean error = result.stepArithmeticCorrect().contains(false);
-        return new TracedStrategy(error ? StrategyEvidenceState.ERROR_ARITMETICO_IDENTIFICABLE : StrategyEvidenceState.COHERENTE,
+        return new Traced<>(error ? StrategyEvidenceState.ERROR_ARITMETICO_IDENTIFICABLE : StrategyEvidenceState.COHERENTE,
                 AssessmentTrace.of(error ? SUBTRACTION_ERROR : SUBTRACTION_COHERENT));
     }
 }
