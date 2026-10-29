@@ -3,20 +3,25 @@
 `EvidenceAggregator` is a standalone, pure domain function. For a missing-addend
 exercise it checks the supplied completed visual count with `MissingAddendMath`;
 a null count means unfinished. The visual state is independent of speech. An
-unavailable recognition result or blank hypothesis is `NO_EVALUABLE`; an available but unrecognized
-or vague hypothesis is `INSUFICIENTE`. The caller must supply extracted evidence
-from the same attempt and correctly distinguish unavailable speech from a valid
-but empty extraction.
+unavailable recognition result, or a hypothesis without any letter or digit
+(blank, `.` or `...`), is `NO_EVALUABLE`; an available but unrecognized or vague
+hypothesis is `INSUFICIENTE`. The caller must supply extracted evidence from the
+same attempt and correctly distinguish unavailable speech from a valid but empty
+extraction.
 
-A complete standalone number hypothesis, or an explicit `ADDED` claim, different
-from the visual count yields `CONFLICTO_ASR`,
-including when other claims agree; it does not identify which source is wrong.
-Other action quantities are not compared to the answer. A coherent account
-requires exactly the ordered `HAD` known addend, `ADDED` visual answer and
-`REMAINED` total, and a correct visual answer. Other patterns, repeated claims,
-unfinished attempts and incompatible accounts remain insufficient unless an
-explicit added quantity conflicts. This deliberately narrow rule does not infer
-intent or accept every reasonable explanation.
+When the total of the explicit `ADDED` claims differs from the visual count, the
+result is `CONFLICTO_ASR`, including when other claims agree; it does not identify
+which source is wrong. Adding in steps (`puse cuatro, y luego puse dos` for six)
+is therefore not a conflict, while `puse seis, puse siete` is. With
+`missingAddendHypothesis`, the supplied `ExplanationInterpreter` may also report a
+complete standalone number hypothesis (`siete`, `Siete.`), which conflicts in the
+same way. Other action quantities are not compared to the answer. A coherent
+account requires exactly the ordered `HAD` known addend, `ADDED` visual answer and
+`REMAINED` total, and a correct visual answer. Other patterns, including
+multi-step additions, and incompatible accounts remain insufficient unless the
+added total conflicts. An unfinished attempt has no visual count to compare, so it
+is always insufficient. This deliberately narrow rule does not infer intent or
+accept every reasonable explanation.
 
 Separately, `confirmedSubtractionSteps` validates explicit, independently
 confirmed equations through `SubtractionDecompositionMath`. Only a complete,

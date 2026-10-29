@@ -17,6 +17,10 @@ class EvidenceAggregatorTests {
         return missingAddend(operands, answer, SpeechStatus.AVAILABLE, interpreter.interpret(speech));
     }
 
+    private Result hypothesis(Integer answer, String transcript) {
+        return missingAddendHypothesis(interpreter, operands, answer, transcript);
+    }
+
     @Test void preservesVisualMathWhenSpeechConflictsOrIsVague() {
         assertThat(assess(6, "puse siete"))
                 .isEqualTo(new Result(ActionMathState.CORRECTA, StrategyEvidenceState.CONFLICTO_ASR));
@@ -31,22 +35,30 @@ class EvidenceAggregatorTests {
         assertThat(assess(6, "tenía doce, puse seis, quedaron dieciocho").strategyEvidenceState())
                 .isEqualTo(StrategyEvidenceState.COHERENTE);
         for (String text : List.of("puse seis", "tenía siete", "tenía doce, puse seis, quedaron diecisiete",
-                "tenía doce, puse seis, puse siete, quedaron dieciocho")) {
-            assertThat(assess(6, text).strategyEvidenceState()).isNotEqualTo(StrategyEvidenceState.COHERENTE);
+                "tenía doce, puse cuatro, y luego puse dos, quedaron dieciocho",
+                "puse uno, puse uno, puse uno, puse uno, puse uno, puse uno")) {
+            assertThat(assess(6, text).strategyEvidenceState()).as(text).isEqualTo(StrategyEvidenceState.INSUFICIENTE);
         }
-        assertThat(assess(6, "puse seis, puse siete").strategyEvidenceState())
-                .isEqualTo(StrategyEvidenceState.CONFLICTO_ASR);
+        for (String text : List.of("tenía doce, puse seis, puse siete, quedaron dieciocho",
+                "puse seis, puse siete", "puse seis, puse seis")) {
+            assertThat(assess(6, text).strategyEvidenceState()).as(text).isEqualTo(StrategyEvidenceState.CONFLICTO_ASR);
+        }
+        // Each claim matches, but 12 + 7 != 18: an incorrect visual answer is never coherent.
+        assertThat(assess(7, "tenía doce, puse siete, quedaron dieciocho"))
+                .isEqualTo(new Result(ActionMathState.INCORRECTA, StrategyEvidenceState.INSUFICIENTE));
     }
 
     @Test void standaloneNumberCanConflictButCannotProveAStrategy() {
-        assertThat(missingAddendHypothesis(operands, 6, "siete").strategyEvidenceState())
-                .isEqualTo(StrategyEvidenceState.CONFLICTO_ASR);
-        assertThat(missingAddendHypothesis(operands, 6, "seis").strategyEvidenceState())
-                .isEqualTo(StrategyEvidenceState.INSUFICIENTE);
-        for (String text : List.of("no siete", "quizás siete", "siete u ocho", "dijo siete")) {
-            assertThat(missingAddendHypothesis(operands, 6, text).strategyEvidenceState())
+        for (String text : List.of("siete", "Siete.", "¡siete!", " siete")) {
+            assertThat(hypothesis(6, text).strategyEvidenceState()).as(text)
+                    .isEqualTo(StrategyEvidenceState.CONFLICTO_ASR);
+        }
+        for (String text : List.of("seis", "Seis.", "no siete", "quizás siete", "siete u ocho", "dijo siete",
+                "¿siete?")) {
+            assertThat(hypothesis(6, text).strategyEvidenceState()).as(text)
                     .isEqualTo(StrategyEvidenceState.INSUFICIENTE);
         }
+        assertThatNullPointerException().isThrownBy(() -> missingAddendHypothesis(null, operands, 6, "siete"));
     }
 
     @Test void unavailableSpeechIsDistinctFromAnUnrecognizedStatement() {
@@ -58,15 +70,15 @@ class EvidenceAggregatorTests {
     }
 
     @Test void blankHypothesesAreNotEvaluableAndPreserveVisualState() {
-        for (String text : List.of("", " \t\n")) {
-            assertThat(missingAddendHypothesis(operands, 6, text))
+        for (String text : List.of("", " \t\n", "...", " .", " ")) {
+            assertThat(hypothesis(6, text))
                     .isEqualTo(new Result(ActionMathState.CORRECTA, StrategyEvidenceState.NO_EVALUABLE));
-            assertThat(missingAddendHypothesis(operands, 7, text))
+            assertThat(hypothesis(7, text))
                     .isEqualTo(new Result(ActionMathState.INCORRECTA, StrategyEvidenceState.NO_EVALUABLE));
-            assertThat(missingAddendHypothesis(operands, null, text))
+            assertThat(hypothesis(null, text))
                     .isEqualTo(new Result(ActionMathState.SIN_TERMINAR, StrategyEvidenceState.NO_EVALUABLE));
         }
-        assertThat(missingAddendHypothesis(operands, 6, "porque").strategyEvidenceState())
+        assertThat(hypothesis(6, "porque").strategyEvidenceState())
                 .isEqualTo(StrategyEvidenceState.INSUFICIENTE);
     }
 

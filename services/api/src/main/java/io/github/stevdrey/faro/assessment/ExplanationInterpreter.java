@@ -3,6 +3,7 @@ package io.github.stevdrey.faro.assessment;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /** Extracts unconfirmed literal evidence; an empty list means insufficient evidence. */
 public interface ExplanationInterpreter {
@@ -24,4 +25,13 @@ public interface ExplanationInterpreter {
     }
 
     List<Evidence> interpret(String transcript);
+
+    /**
+     * The value of a complete hypothesis that is one bare number, with only spaces or separators
+     * around it. Like all evidence it is unconfirmed and never establishes a strategy.
+     */
+    default OptionalInt standaloneNumber(String transcript) {
+        Objects.requireNonNull(transcript, "transcript");
+        return OptionalInt.empty();
+    }
 }
