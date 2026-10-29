@@ -54,6 +54,11 @@ over 16,000 UTF-16 code units also yield no evidence, without truncation; null
 is rejected. This is a conservative extraction policy, not a determination of
 speech quality, understanding or ASR reliability.
 
+Separately, `standaloneNumber` (FARO-020) returns the value when the entire
+hypothesis is one recognized number with only whitespace and the separators
+above around it (`siete`, `Siete.`); extra words, cues, several numbers or any
+other character yield nothing. The port's default implementation recognizes none.
+
 The interpreter neither stores nor logs the input. Evidence string representations
 are redacted, but values and offsets remain accessible to callers and must be
 treated as sensitive. No raw recordings or personal pilot evidence are used.

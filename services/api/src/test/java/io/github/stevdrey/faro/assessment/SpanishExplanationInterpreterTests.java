@@ -119,6 +119,19 @@ class SpanishExplanationInterpreterTests {
     }
 
     @Test
+    void recognizesOnlyABareStandaloneNumber() {
+        assertThat(interpreter.standaloneNumber("siete")).hasValue(7);
+        assertThat(interpreter.standaloneNumber("Siete.")).hasValue(7);
+        assertThat(interpreter.standaloneNumber(" treinta y dos!")).hasValue(32);
+        assertThat(interpreter.standaloneNumber("7")).hasValue(7);
+        for (String text : List.of("", "...", "siete bloques", "no siete", "siete u ocho", "¿siete?",
+                "puse siete", "siete siete")) {
+            assertThat(interpreter.standaloneNumber(text)).as(text).isEmpty();
+        }
+        assertThatNullPointerException().isThrownBy(() -> interpreter.standaloneNumber(null));
+    }
+
+    @Test
     void evidenceRejectsInvalidRanges() {
         assertThatNullPointerException().isThrownBy(() -> new ExplanationInterpreter.Evidence(null, 1, 0, 2, 0, 1));
         assertThatIllegalArgumentException().isThrownBy(() -> new ExplanationInterpreter.Evidence(HAD, -1, 0, 2, 0, 1));

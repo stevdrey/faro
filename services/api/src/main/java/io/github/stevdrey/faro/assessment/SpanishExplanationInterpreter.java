@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import io.github.stevdrey.faro.assessment.SpanishNumberNormalizer.NumberMention;
 import io.github.stevdrey.faro.assessment.SpanishTokens.Token;
@@ -46,6 +47,20 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
             }
         }
         return List.copyOf(evidence);
+    }
+
+    @Override
+    public OptionalInt standaloneNumber(String transcript) {
+        Objects.requireNonNull(transcript, "transcript");
+        if (transcript.isBlank() || transcript.length() > MAX_LENGTH) return OptionalInt.empty();
+        var tokens = SpanishTokens.tokenize(transcript);
+        if (tokens.isEmpty() || !onlySpacesAndSeparators(transcript, tokens)) return OptionalInt.empty();
+        var normalized = SpanishNumberNormalizer.normalize(transcript, tokens);
+        if (!normalized.cues().isEmpty() || normalized.numbers().size() != 1) return OptionalInt.empty();
+        var number = normalized.numbers().getFirst();
+        // Every word must belong to the number: "siete bloques" or "dijo siete" is not a bare answer.
+        return tokens.getFirst().start() >= number.start() && tokens.getLast().end() <= number.end()
+                ? OptionalInt.of(number.value()) : OptionalInt.empty();
     }
 
     private static boolean onlySpacesAndSeparators(String text, List<Token> tokens) {
