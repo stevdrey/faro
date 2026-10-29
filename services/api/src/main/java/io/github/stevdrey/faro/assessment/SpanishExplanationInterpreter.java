@@ -27,13 +27,14 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
             Map.entry("quedo", Action.REMAINED), Map.entry("quedaron", Action.REMAINED));
 
     @Override
-    public List<Evidence> interpret(String transcript) {
+    public Interpretation interpretation(String transcript) {
         Objects.requireNonNull(transcript, "transcript");
-        if (transcript.isBlank() || transcript.length() > MAX_LENGTH) return List.of();
+        if (transcript.length() > MAX_LENGTH) return Interpretation.unsupported();
+        if (transcript.isBlank()) return new Interpretation(Outcome.NOTHING_EXTRACTED, List.of());
         var tokens = SpanishTokens.tokenize(transcript);
-        if (!onlySpacesAndSeparators(transcript, tokens)) return List.of();
+        if (!onlySpacesAndSeparators(transcript, tokens)) return Interpretation.unsupported();
         var normalized = SpanishNumberNormalizer.normalize(transcript, tokens);
-        if (!normalized.cues().isEmpty()) return List.of();
+        if (!normalized.cues().isEmpty()) return Interpretation.unsupported();
         var numbers = new HashMap<Integer, NumberMention>();
         for (var mention : normalized.numbers()) numbers.put(mention.start(), mention);
 
@@ -42,11 +43,11 @@ public final class SpanishExplanationInterpreter implements ExplanationInterpret
         for (int i = 1; i <= tokens.size(); i++) {
             if (i == tokens.size() || isBoundary(transcript, tokens, i)) {
                 // Reported speech, lists, corrections, hedges and conditionals all surface as unsupported clauses.
-                if (!parseClause(tokens, start, i, numbers, evidence)) return List.of();
+                if (!parseClause(tokens, start, i, numbers, evidence)) return Interpretation.unsupported();
                 start = i;
             }
         }
-        return List.copyOf(evidence);
+        return new Interpretation(evidence.isEmpty() ? Outcome.NOTHING_EXTRACTED : Outcome.EXTRACTED, evidence);
     }
 
     @Override

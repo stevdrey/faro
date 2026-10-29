@@ -12,13 +12,13 @@
 
 The canonical enumerations above retain their original Spanish identifiers for cross-document compatibility; English code-facing enum names can be adopted through a separately versioned contract decision. Adult output must **not** say the child 'does not understand'.
 
-FARO-004 implements these values in the provider-independent Java `AssessmentResult` and the [version 1 assessment contract](../contracts/assessments/v1/README.md), with strict JSON binding, readonly TypeScript types, and six shared synthetic fixtures. All three axes remain independent; the contract preserves supplied states rather than inferring them. Required `ruleIds` (possibly empty) and nonblank `assessmentVersion` provide minimal provenance. The rule catalog and emission belong to FARO-021; structured evidence references remain future work.
+FARO-004 implements these values in the provider-independent Java `AssessmentResult` and the [version 1 assessment contract](../contracts/assessments/v1/README.md), with strict JSON binding, readonly TypeScript types, and six shared synthetic fixtures. All three axes remain independent; the contract preserves supplied states rather than inferring them. Required `ruleIds` (possibly empty) and nonblank `assessmentVersion` provide minimal provenance. FARO-021 adds a separate domain trace and rule catalog; the v1 wire contract remains unchanged.
 
-FARO-019 extracts bounded literal explanation evidence. FARO-020 adds standalone conservative aggregation for missing-addend visual counts and a separate check of confirmed subtraction equations; see [verification](verification/evidence-aggregation.md). The complete processing pipeline, feedback selection, attempt correlation, confirmation and retries remain future integration.
+FARO-019 extracts bounded literal explanation evidence. FARO-020 adds standalone conservative aggregation for missing-addend visual counts and a separate check of confirmed subtraction equations; see [verification](verification/evidence-aggregation.md). FARO-021 traces those aggregation decisions with minimal input categories; see [traceability verification](verification/assessment-traceability.md). The complete processing pipeline, feedback selection, attempt correlation, confirmation and retries remain future integration.
 
 ## Inputs and evidence processing
 
-`assess(exercise, actionTrace, speechHypothesis?, clarifications[]) -> AssessmentResult` includes versioned `ruleIds`; structured evidence references are planned but are not part of the version 1 result. The deterministic math engine checks outcomes and steps; an `ActionInterpreter` interprets semantic moves; a bounded `ExplanationInterpreter` extracts only supported phrases and numbers; an `EvidenceAggregator` resolves uncertainty; a `FeedbackPolicy` chooses a bounded response.
+`assess(exercise, actionTrace, speechHypothesis?, clarifications[]) -> AssessmentResult` includes versioned `ruleIds`; the separate aggregation trace uses input categories, which are not part of the version 1 result. The deterministic math engine checks outcomes and steps; an `ActionInterpreter` interprets semantic moves; a bounded `ExplanationInterpreter` extracts only supported phrases and numbers; an `EvidenceAggregator` resolves uncertainty; a `FeedbackPolicy` chooses a bounded response.
 
 ## Safety constraints
 

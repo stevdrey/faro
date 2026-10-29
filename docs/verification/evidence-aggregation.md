@@ -31,8 +31,8 @@ remain insufficient. The caller must establish confirmation before invoking this
 method: FARO-019 extracts action/quantity claims, not equations, and an ASR
 hypothesis alone is not confirmation. This function does not assess a visual
 subtraction attempt or correlate it with speech. No user-facing flow currently
-calls either function. Feedback, clarification, provenance/rule catalog,
-confirmation and attempt correlation remain separate work. No transcript or
+calls either function. FARO-021 adds a separate [domain trace and rule catalog](assessment-traceability.md).
+Feedback, clarification, confirmation and attempt correlation remain separate work. No transcript or
 audio is retained or logged by this aggregator.
 
 Verification with JDK 27 and Gradle:

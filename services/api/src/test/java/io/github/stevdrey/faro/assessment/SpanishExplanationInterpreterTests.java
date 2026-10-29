@@ -119,6 +119,23 @@ class SpanishExplanationInterpreterTests {
     }
 
     @Test
+    void reportsWhetherInputWasUnsupportedOrHadNothingToExtract() {
+        assertThat(interpreter.interpretation("puse seis").outcome()).isEqualTo(ExplanationInterpreter.Outcome.EXTRACTED);
+        for (String text : List.of("", "   ", "y luego")) {
+            assertThat(interpreter.interpretation(text).outcome()).as(text)
+                    .isEqualTo(ExplanationInterpreter.Outcome.NOTHING_EXTRACTED);
+        }
+        for (String text : List.of("porque", "siete", "tenía doce, creo que puse seis", "¿puse seis?",
+                "tenía seis" + " ".repeat(16_000))) {
+            var interpretation = interpreter.interpretation(text);
+            assertThat(interpretation.outcome()).as(text).isEqualTo(ExplanationInterpreter.Outcome.UNSUPPORTED);
+            assertThat(interpretation.evidence()).as(text).isEmpty();
+        }
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExplanationInterpreter.Interpretation(ExplanationInterpreter.Outcome.EXTRACTED, List.of()));
+    }
+
+    @Test
     void recognizesOnlyABareStandaloneNumber() {
         assertThat(interpreter.standaloneNumber("siete")).hasValue(7);
         assertThat(interpreter.standaloneNumber("Siete.")).hasValue(7);
